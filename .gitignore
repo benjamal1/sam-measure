@@ -1,0 +1,4 @@
+.venv/
+vendor/sam2/checkpoints/*.pt
+__pycache__/
+*.pyc
