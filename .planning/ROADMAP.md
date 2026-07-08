@@ -29,7 +29,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. The exported mask file is named using identifying metadata (date, batch, condition, thread number) derived at export time, and the original source photo on Nextcloud is never modified or moved
   4. An overlay QC image (mask drawn over the original photo) is saved alongside the exported mask for visual audit
   5. Running the pipeline on that one thread plus one ruler photo produces a single CSV row with correct pixel area, average diameter/stdev, and mm-converted values, in the exact column names/order the existing R script expects
-**Plans**: TBD
+**Plans**: 5 plans (waves: 1 → [2 parallel] → 3)
+- [ ] 01-01-PLAN.md — Scaffold + folder-path metadata/naming parser (TDD) [wave 1]
+- [ ] 01-02-PLAN.md — Measurement engine: skeleton+distance-transform area/diameter/stdev (TDD) [wave 2]
+- [ ] 01-03-PLAN.md — Ruler calibration + join/CSV assembly in exact R schema (TDD) [wave 2]
+- [ ] 01-04-PLAN.md — Segmentation engine: SAM2 device-fallback + export + raster erase [wave 2]
+- [ ] 01-05-PLAN.md — Click-loop UI + end-to-end orchestrator + skeleton integration test + Mac morning-test doc [wave 3]
 
 ### Phase 2: Batch Hardening & Validation
 **Goal**: The pipeline built in Phase 1 can be trusted to run across the full multi-session historical dataset — measurement accuracy is validated against ImageJ ground truth, re-runs are safe, missing calibration hard-fails loudly, and every run leaves an audit trail.
@@ -62,7 +67,7 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Walking Skeleton — Single-Thread Click-to-CSV | 0/TBD | Not started | - |
+| 1. Walking Skeleton — Single-Thread Click-to-CSV | 0/5 | Not started | - |
 | 2. Batch Hardening & Validation | 0/TBD | Not started | - |
 | 3. Historical Folder Cleanup | 0/TBD | Not started | - |
 </content>
