@@ -47,7 +47,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Processing a thread whose session has no matching ruler calibration hard-fails with a clear error instead of silently defaulting or skipping
   4. A thread row that can't be matched to a calibration factor during CSV assembly hard-fails the run instead of being silently skipped or nulled out
   5. Each pipeline run produces a manifest/log recording every input processed, every output written, and which conversion factor was applied to which thread
-**Plans**: TBD
+**Plans**: 3 plans (all wave 1 — parallel, zero file overlap)
+- [ ] 02-01-PLAN.md — Idempotent batch export + run manifest (EXPT-04, CSV-05) [wave 1]
+- [ ] 02-02-PLAN.md — Hard-fail calibration contracts, no partial/stale CSV (CAL-03, CSV-04) [wave 1]
+- [ ] 02-03-PLAN.md — ImageJ ground-truth validation across all 4 threads → VALIDATION.md (MEAS-03) [wave 1]
 
 ### Phase 3: Historical Folder Cleanup
 **Goal**: User can turn a messy, deeply-nested folder of legacy thread photos into flat, informative filenames — inspected and run per-batch, since the historical mess isn't uniform across batches.
@@ -68,6 +71,6 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Walking Skeleton — Single-Thread Click-to-CSV | 5/5 | Complete (verified passed) | 2026-07-08 |
-| 2. Batch Hardening & Validation | 0/TBD | Not started | - |
+| 2. Batch Hardening & Validation | 0/3 | Planned | - |
 | 3. Historical Folder Cleanup | 0/TBD | Not started | - |
 </content>
