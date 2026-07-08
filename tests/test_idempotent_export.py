@@ -10,15 +10,24 @@ from segment.export import export_mask
 from segment.naming import canonical_stem, parse_flat_path
 from segment.segment_export import export_folder
 
-NEXTCLOUD_ROOT_08_04_25 = "/home/bcjamal/Nextcloud/threads daily imaging/08-04-25"
+import os
+
+_CANDIDATE_ROOTS = [
+    os.environ.get("THREAD_DATA_ROOT", ""),
+    "/home/bcjamal/Nextcloud/threads daily imaging",
+    "/Users/benjaminjamal/Library/CloudStorage/Nextcloud-bcjamal@cloud.bjserver.net/threads daily imaging",
+]
 
 
 def _real_08_04_25_photos():
     from pathlib import Path
-    d = Path(NEXTCLOUD_ROOT_08_04_25)
-    if not d.exists():
-        pytest.skip(f"real data not found at {d}")
-    return sorted(d.glob("*.JPG"))
+    for root in _CANDIDATE_ROOTS:
+        if not root:
+            continue
+        d = Path(root) / "08-04-25"
+        if d.exists():
+            return sorted(d.glob("*.JPG"))
+    pytest.skip(f"real data not found in any of: {_CANDIDATE_ROOTS}")
 
 
 def _raising_click_loop(predictor, image_rgb, on_accept):
