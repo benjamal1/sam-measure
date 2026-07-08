@@ -81,24 +81,24 @@ Which phases cover which requirements. Updated during roadmap creation.
 | SEG-01 | Phase 1 | Pending |
 | SEG-02 | Phase 1 | Pending |
 | SEG-03 | Phase 1 | Pending |
-| EXPT-01 | Phase 2 | Pending |
-| EXPT-02 | Phase 2 | Pending |
-| EXPT-03 | Phase 2 | Pending |
+| EXPT-01 | Phase 1 | Pending |
+| EXPT-02 | Phase 1 | Pending |
+| EXPT-03 | Phase 1 | Pending |
+| MEAS-01 | Phase 1 | Pending |
+| MEAS-02 | Phase 1 | Pending |
+| CAL-01 | Phase 1 | Pending |
+| CAL-02 | Phase 1 | Pending |
+| CSV-01 | Phase 1 | Pending |
+| CSV-02 | Phase 1 | Pending |
+| CSV-03 | Phase 1 | Pending |
 | EXPT-04 | Phase 2 | Pending |
-| MEAS-01 | Phase 3 | Pending |
-| MEAS-02 | Phase 3 | Pending |
-| MEAS-03 | Phase 3 | Pending |
-| CAL-01 | Phase 4 | Pending |
-| CAL-02 | Phase 4 | Pending |
-| CAL-03 | Phase 4 | Pending |
-| CSV-01 | Phase 5 | Pending |
-| CSV-02 | Phase 5 | Pending |
-| CSV-03 | Phase 5 | Pending |
-| CSV-04 | Phase 5 | Pending |
-| CSV-05 | Phase 5 | Pending |
-| CLN-01 | Phase 6 | Pending |
-| CLN-02 | Phase 6 | Pending |
-| CLN-03 | Phase 6 | Pending |
+| MEAS-03 | Phase 2 | Pending |
+| CAL-03 | Phase 2 | Pending |
+| CSV-04 | Phase 2 | Pending |
+| CSV-05 | Phase 2 | Pending |
+| CLN-01 | Phase 3 | Pending |
+| CLN-02 | Phase 3 | Pending |
+| CLN-03 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 21 total
@@ -107,4 +107,5 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 ---
 *Requirements defined: 2026-07-08*
-*Last updated: 2026-07-08 after initial definition*
+*Last updated: 2026-07-07 after roadmap creation (phase mapping revised: research's 6-stage draft compressed to 3 phases under coarse granularity + mvp mode)*
+</content>
