@@ -12,7 +12,7 @@ The journey starts with a walking skeleton: prove that one thread photo can trav
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Walking Skeleton — Single-Thread Click-to-CSV** - One thread photo can go from a single SAM2 click through to a correct CSV row, proving the whole pipeline shape end-to-end
+- [x] **Phase 1: Walking Skeleton — Single-Thread Click-to-CSV** - One thread photo can go from a single SAM2 click through to a correct CSV row, proving the whole pipeline shape end-to-end
 - [ ] **Phase 2: Batch Hardening & Validation** - The same pipeline runs reliably and safely across the full multi-session dataset, with validated measurement accuracy and hard-fail safety nets
 - [ ] **Phase 3: Historical Folder Cleanup** - Per-batch tool flattens messy nested legacy folders into the pipeline's naming convention, safely and with human review
 
@@ -67,7 +67,7 @@ Phases execute in numeric order: 1 → 2 → 3
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Walking Skeleton — Single-Thread Click-to-CSV | 0/5 | Not started | - |
+| 1. Walking Skeleton — Single-Thread Click-to-CSV | 5/5 | Complete (verified passed) | 2026-07-08 |
 | 2. Batch Hardening & Validation | 0/TBD | Not started | - |
 | 3. Historical Folder Cleanup | 0/TBD | Not started | - |
 </content>

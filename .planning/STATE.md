@@ -4,17 +4,17 @@ milestone: v1.0
 milestone_name: milestone
 current_phase: 1
 current_phase_name: Walking Skeleton — Single-Thread Click-to-CSV
-status: planning
-stopped_at: Phase 1 research complete, proceeding to planning
-last_updated: "2026-07-08T04:41:42.461Z"
-last_activity: 2026-07-07
-last_activity_desc: ROADMAP.md and STATE.md created from REQUIREMENTS.md + research/SUMMARY.md
+status: verified
+stopped_at: Phase 1 complete and verified — passed
+last_updated: "2026-07-08T06:35:00.000Z"
+last_activity: 2026-07-08
+last_activity_desc: Phase 1 implemented end-to-end overnight (5 plans), code-reviewed, verified against all 9 acceptance criteria — VERIFICATION.md passed
 progress:
   total_phases: 3
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  total_plans: 5
+  completed_plans: 5
+  percent: 33
 ---
 
 # Project State
@@ -28,12 +28,12 @@ See: .planning/PROJECT.md (updated 2026-07-07)
 
 ## Current Position
 
-Phase: 1 of 3 (Walking Skeleton — Single-Thread Click-to-CSV)
-Plan: 0 of TBD in current phase
-Status: Ready to plan
-Last activity: 2026-07-07 — ROADMAP.md and STATE.md created from REQUIREMENTS.md + research/SUMMARY.md
+Phase: 1 of 3 (Walking Skeleton — Single-Thread Click-to-CSV) — COMPLETE, VERIFIED PASSED
+Plan: 5 of 5 in current phase
+Status: Ready for Phase 2 (batch hardening) — pending user's Mac validation pass (MORNING-TEST.md) first
+Last activity: 2026-07-08 — Phase 1 fully implemented, reviewed, and verified in an overnight autonomous session
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -90,9 +90,9 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-08T04:41:42.437Z
-Stopped at: Phase 1 research complete, proceeding to planning
-Resume file: .planning/phases/01-walking-skeleton-single-thread-click-to-csv/01-RESEARCH.md
+Last session: 2026-07-08T06:35:00.000Z
+Stopped at: Phase 1 complete and verified — passed. Waiting on user's Mac validation pass (MORNING-TEST.md) before Phase 2.
+Resume file: .planning/phases/01-walking-skeleton-single-thread-click-to-csv/VERIFICATION.md
 
 ## Pipeline Progress
 
@@ -100,5 +100,16 @@ Resume file: .planning/phases/01-walking-skeleton-single-thread-click-to-csv/01-
 - [2026-07-08T04:27:30Z] Phase 1, Step 2 (Provision Project Skills/Agents): done.
 - [2026-07-08T04:30:00Z] Phase 1, Step 3 (Search-First): done.
 - [2026-07-08T04:33:00Z] Phase 1, Step 4 (Acceptance Criteria): done.
+- [2026-07-08T05:00:00Z] Phase 1, Step 5 (Build Research): done.
+- [2026-07-08T06:15:00Z] Phase 1, Step 6 (Plan): done — 5 plans across 3 waves, SKELETON.md.
+- [2026-07-08T06:30:00Z] Phase 1, Step 7 (Implementation): done — all 5 plans built, 41 fast + 3 slow tests green, real-data validated within 3% of ImageJ ground truth.
+- [2026-07-08T06:33:00Z] Phase 1, Step 8 (Code Review): done — 1 finding (thread-identifier injection into canonical_stem), fixed and regression-tested (commit 9014e0b).
+- [2026-07-08T06:35:00Z] Phase 1, Step 9 (Verify): done — VERIFICATION.md, all 9 ACs covered (8 fully, 1 partial pending Mac), status passed.
+
+## Pipeline Skips
+
+- [2026-07-08T06:20:00Z] Phase 1, Step 6b/6c (plan-orchestrate / agentic-engineering annotation): skipped. Reason: plans already had wave/depends_on/type:tdd/autonomous frontmatter from gsd-planner sufficient for solo overnight execution; extra annotation ceremony added no value with no multi-agent fan-out in play. Backfill: not needed unless this project moves to multi-agent execution.
+- [2026-07-08T06:33:00Z] Phase 1, Step 8 (gsd-code-review + security-review agents): partial skip. Reason: the code-reviewer subagent stalled (600s no progress, likely host memory pressure from concurrent sessions) before completing; one real finding it had already surfaced (thread-identifier injection) was captured and fixed, and the primary agent completed the remaining review (path-traversal/security check, CSV-contract lock check) manually rather than re-spawning into the same resource contention. Backfill: re-run a fresh code-reviewer pass if host load drops and deeper coverage is wanted.
+- [2026-07-08T06:35:00Z] Phase 1, Step 10 (gsd-ship / PR): skipped for this run. Reason: no GitHub remote configured for gated PR review yet; work is committed directly to main locally, pending user's Mac validation before any ship decision. Backfill: run gsd-ship once a remote exists and MORNING-TEST.md is cleared.
 
 </content>

@@ -78,19 +78,19 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SEG-01 | Phase 1 | Pending |
-| SEG-02 | Phase 1 | Pending |
-| SEG-03 | Phase 1 | Pending |
-| EXPT-01 | Phase 1 | Pending |
-| EXPT-02 | Phase 1 | Pending |
-| EXPT-03 | Phase 1 | Pending |
-| MEAS-01 | Phase 1 | Pending |
-| MEAS-02 | Phase 1 | Pending |
-| CAL-01 | Phase 1 | Pending |
-| CAL-02 | Phase 1 | Pending |
-| CSV-01 | Phase 1 | Pending |
-| CSV-02 | Phase 1 | Pending |
-| CSV-03 | Phase 1 | Pending |
+| SEG-01 | Phase 1 | Complete (CPU path; MPS pending Mac validation) |
+| SEG-02 | Phase 1 | Complete |
+| SEG-03 | Phase 1 | Complete (CPU fallback proven; MPS pending Mac validation) |
+| EXPT-01 | Phase 1 | Complete |
+| EXPT-02 | Phase 1 | Complete |
+| EXPT-03 | Phase 1 | Complete |
+| MEAS-01 | Phase 1 | Complete |
+| MEAS-02 | Phase 1 | Complete |
+| CAL-01 | Phase 1 | In Progress (math complete; interactive click pending Mac validation) |
+| CAL-02 | Phase 1 | Complete |
+| CSV-01 | Phase 1 | Complete |
+| CSV-02 | Phase 1 | Complete |
+| CSV-03 | Phase 1 | Complete |
 | EXPT-04 | Phase 2 | Pending |
 | MEAS-03 | Phase 2 | Pending |
 | CAL-03 | Phase 2 | Pending |
