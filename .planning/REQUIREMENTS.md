@@ -30,14 +30,14 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [ ] **CAL-01**: User can process a photo of a ruler to derive a pixels-per-cm conversion factor
 - [ ] **CAL-02**: Conversion factor is computed and stored per session (date/batch), not as one global constant
-- [ ] **CAL-03**: Pipeline hard-fails (does not silently default or skip) when a thread's session has no matching ruler calibration
+- [x] **CAL-03**: Pipeline hard-fails (does not silently default or skip) when a thread's session has no matching ruler calibration
 
 ### CSV Assembly
 
 - [ ] **CSV-01**: Pipeline joins each thread's pixel measurements to its session's conversion factor by date/batch key
 - [ ] **CSV-02**: Pipeline converts pixel measurements to mm/cm units using the matched conversion factor
 - [ ] **CSV-03**: Final CSV output matches the existing R script's exact columns and order: `Thread, Batch, Condition, Date, Conversion (pixels/cm), Avg diameter(px), StDev(px), AvgDiameter(mm), StDev(mm)` — no R script changes required
-- [ ] **CSV-04**: Pipeline hard-fails (does not silently skip or null out) on any thread row that can't be matched to a calibration factor
+- [x] **CSV-04**: Pipeline hard-fails (does not silently skip or null out) on any thread row that can't be matched to a calibration factor
 - [ ] **CSV-05**: Each pipeline run produces a manifest/log recording inputs processed, outputs written, and which conversion factor was applied to which thread
 
 ### Historical Cleanup
@@ -93,14 +93,15 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CSV-03 | Phase 1 | Complete |
 | EXPT-04 | Phase 2 | Pending |
 | MEAS-03 | Phase 2 | Pending |
-| CAL-03 | Phase 2 | Pending |
-| CSV-04 | Phase 2 | Pending |
+| CAL-03 | Phase 2 | Complete |
+| CSV-04 | Phase 2 | Complete |
 | CSV-05 | Phase 2 | Pending |
 | CLN-01 | Phase 3 | Pending |
 | CLN-02 | Phase 3 | Pending |
 | CLN-03 | Phase 3 | Pending |
 
 **Coverage:**
+
 - v1 requirements: 21 total
 - Mapped to phases: 21
 - Unmapped: 0 ✓

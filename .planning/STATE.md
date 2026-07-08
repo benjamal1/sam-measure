@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 2
-current_phase_name: Batch Hardening & Validation
+current_phase: 1
+current_phase_name: Walking Skeleton — Single-Thread Click-to-CSV
 status: in_progress
 stopped_at: Phase 2 context gathered [auto]
-last_updated: "2026-07-08T10:42:49.337Z"
+last_updated: "2026-07-08T20:00:53.131Z"
 last_activity: 2026-07-08
 last_activity_desc: Phase 1 fully implemented, reviewed, and verified in an overnight autonomous session
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 8
+  completed_plans: 6
   percent: 33
 ---
 
@@ -55,6 +55,7 @@ Progress: [███░░░░░░░] 33%
 - Trend: -
 
 *Updated after each plan completion*
+| Phase 02 P02 | 25min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -65,6 +66,8 @@ Recent decisions affecting current work:
 
 - Roadmap: Compressed research's 6-stage pipeline into 3 phases (coarse granularity) — Phase 1 is a full click-to-CSV vertical slice (mvp mode) rather than horizontal layers, Phase 2 hardens the same pipeline for batch scale, Phase 3 stays the deliberately separate per-batch cleanup track.
 - Roadmap: MEAS-03 (ImageJ validation), CAL-03/CSV-04 (hard-fail safety nets), CSV-05 (manifest log), and EXPT-04 (idempotent export) deferred to Phase 2 — these are batch-scale robustness concerns, not needed to prove the walking skeleton in Phase 1.
+- [Phase 02]: CAL-03 and CSV-04 share one unmatched-guard code path; error message names both session and thread id(s)
+- [Phase 02]: Empty calibration.csv normalized to zero-row DataFrame at read boundary, producing clear ValueError instead of bare EmptyDataError
 
 ### Pending Todos
 
@@ -90,7 +93,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-08T10:42:49.300Z
+Last session: 2026-07-08T19:59:40.720Z
 Stopped at: Phase 2 context gathered [auto]
 Resume file: .planning/phases/02-batch-hardening-validation/02-CONTEXT.md
 
