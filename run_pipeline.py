@@ -19,6 +19,7 @@ from PIL import Image
 from calibrate.ruler_scale import px_per_cm, write_calibration_csv
 from join.build_final_csv import build_final_csv
 from measure.measure_masks import measure_folder
+from pipeline.manifest import add_calibration, add_input, add_output, new_manifest, write_manifest
 from segment.export import export_mask
 from segment.naming import PhotoMetadata, canonical_stem
 from segment.sam2_session import load_predictor
@@ -37,16 +38,16 @@ def run(
     condition: str,
     thread: str,
     data_root: Path,
+    *,
+    force: bool = False,
 ) -> pd.DataFrame:
+    from datetime import datetime, timezone
+
     data_root = Path(data_root)
     masks_dir = data_root / "masks"
     qc_dir = data_root / "qc"
     csv_dir = data_root / "csv"
     calibration_dir = data_root / "calibration"
-
-    predictor = load_predictor()
-    image_rgb = np.array(Image.open(photo_path).convert("RGB"))
-    mask = _predict_mask(predictor, image_rgb, click_points, click_labels)
 
     year, month, day = (int(p) for p in date.split("-"))
     from datetime import date as date_cls
@@ -55,7 +56,20 @@ def run(
         date=date_cls(year, month, day), thread=thread, source_path=photo_path,
     )
     stem = canonical_stem(meta, thread)
-    export_mask(mask, image_rgb, stem, masks_dir=masks_dir, qc_dir=qc_dir)
+    mask_path = masks_dir / f"{stem}.png"
+    qc_path = qc_dir / f"{stem}_overlay.png"
+
+    manifest = new_manifest("run_pipeline", datetime.now(timezone.utc).isoformat())
+    manifest = add_input(manifest, str(photo_path))
+
+    if mask_path.exists() and not force:
+        manifest = add_output(manifest, stem=stem, action="skipped", mask_path=mask_path, qc_path=qc_path)
+    else:
+        predictor = load_predictor()
+        image_rgb = np.array(Image.open(photo_path).convert("RGB"))
+        mask = _predict_mask(predictor, image_rgb, click_points, click_labels)
+        export_mask(mask, image_rgb, stem, masks_dir=masks_dir, qc_dir=qc_dir)
+        manifest = add_output(manifest, stem=stem, action="written", mask_path=mask_path, qc_path=qc_path)
 
     measure_folder(masks_dir, csv_dir / "measurements.csv")
 
@@ -64,10 +78,15 @@ def run(
         [{"date": date, "batch": batch, "px_per_cm": factor, "ruler_source_path": str(ruler_path)}],
         calibration_dir / "calibration.csv",
     )
+    manifest = add_calibration(manifest, thread=thread, date=date, batch=batch, px_per_cm=factor, ruler_source_path=str(ruler_path))
 
-    return build_final_csv(
+    result = build_final_csv(
         csv_dir / "measurements.csv", calibration_dir / "calibration.csv", csv_dir / "final.csv"
     )
+
+    write_manifest(manifest, data_root)
+
+    return result
 
 
 def main() -> None:
@@ -84,6 +103,7 @@ def main() -> None:
     parser.add_argument("--condition", type=str, default="")
     parser.add_argument("--thread", type=str, required=True)
     parser.add_argument("--data-root", type=Path, default=Path("data"))
+    parser.add_argument("--force", action="store_true", default=False)
     args = parser.parse_args()
 
     df = run(
@@ -98,6 +118,7 @@ def main() -> None:
         condition=args.condition,
         thread=args.thread,
         data_root=args.data_root,
+        force=args.force,
     )
     print(df.to_string(index=False))
 
