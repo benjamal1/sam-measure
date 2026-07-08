@@ -14,8 +14,8 @@ import os
 
 _CANDIDATE_ROOTS = [
     os.environ.get("THREAD_DATA_ROOT", ""),
-    "/home/bcjamal/Nextcloud/threads daily imaging",
-    "/Users/benjaminjamal/Library/CloudStorage/Nextcloud-bcjamal@cloud.bjserver.net/threads daily imaging",
+    "/home/bcjamal/Nextcloud",
+    str(Path.home() / "Library/CloudStorage"),
 ]
 
 
@@ -24,9 +24,9 @@ def _real_08_04_25_photos():
     for root in _CANDIDATE_ROOTS:
         if not root:
             continue
-        d = Path(root) / "08-04-25"
-        if d.exists():
-            return sorted(d.glob("*.JPG"))
+        for d in Path(root).glob("**/threads daily imaging/08-04-25"):
+            if d.is_dir():
+                return sorted(d.glob("*.JPG"))
     pytest.skip(f"real data not found in any of: {_CANDIDATE_ROOTS}")
 
 
