@@ -1,0 +1,8 @@
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-m 'not slow'"
+markers = [
+    "slow: real-image/SAM2 tests, excluded from the default fast run (run with -m slow)",
+    "integration: end-to-end pipeline tests spanning multiple stages",
+]
