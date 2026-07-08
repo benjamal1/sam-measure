@@ -6,28 +6,37 @@ import numpy as np
 import pytest
 from PIL import Image
 
+import os
+
 from segment.export import export_mask
 from segment.naming import canonical_stem, parse_flat_path
 from segment.segment_export import export_folder
 
-import os
 
-_CANDIDATE_ROOTS = [
-    os.environ.get("THREAD_DATA_ROOT", ""),
-    "/home/bcjamal/Nextcloud",
-    str(Path.home() / "Library/CloudStorage"),
-]
+def _find_nextcloud_root() -> Path | None:
+    """Locate the synced 'threads daily imaging' folder, wherever it landed on this machine."""
+    candidates = [
+        os.environ.get("THREAD_DATA_ROOT", ""),
+        "/home/bcjamal/Nextcloud",
+        str(Path.home() / "Library/CloudStorage"),
+    ]
+    for root in candidates:
+        if not root:
+            continue
+        for d in Path(root).glob("**/threads daily imaging"):
+            if d.is_dir():
+                return d
+    return None
 
 
 def _real_08_04_25_photos():
-    from pathlib import Path
-    for root in _CANDIDATE_ROOTS:
-        if not root:
-            continue
-        for d in Path(root).glob("**/threads daily imaging/08-04-25"):
-            if d.is_dir():
-                return sorted(d.glob("*.JPG"))
-    pytest.skip(f"real data not found in any of: {_CANDIDATE_ROOTS}")
+    root = _find_nextcloud_root()
+    if root is None:
+        pytest.skip("real data not found: no 'threads daily imaging' folder located")
+    d = root / "08-04-25"
+    if not d.exists():
+        pytest.skip(f"real data not found at {d}")
+    return sorted(d.glob("*.JPG"))
 
 
 def _raising_click_loop(predictor, image_rgb, on_accept):
