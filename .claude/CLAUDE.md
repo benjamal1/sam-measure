@@ -138,7 +138,15 @@ Architecture not yet mapped. Follow existing patterns found in the codebase.
 
 ## Project Skills
 
-No project skills found. Add skills to any of: `.claude/skills/`, `.agents/skills/`, `.cursor/skills/`, `.github/skills/`, or `.codex/skills/` with a `SKILL.md` index file.
+Provisioned 2026-07-08 via `/provision-project` (symlinked to `bj-agent-os/config/skills-catalog/`, canonical copy stays there):
+
+- `python-patterns` — Pythonic idioms, PEP 8, type hints
+- `python-testing` — pytest/TDD, relevant given the measurement math (mask→diameter) needs golden-file tests against ImageJ ground truth
+- `matplotlib` — bespoke click/erase segmentation loop (D-01) and overlay QC images both use it directly
+
+LIBRARY (not symlinked, reachable via `skill-catalog-router` on demand): `pytorch-patterns` — only relevant if SAM2/PyTorch model-loading or device-placement debugging comes up; this project does inference only, no training.
+
+Global agents already available, no project-local install needed: `data-analyst`, `python-reviewer`.
 <!-- GSD:skills-end -->
 
 <!-- GSD:workflow-start source:GSD defaults -->
