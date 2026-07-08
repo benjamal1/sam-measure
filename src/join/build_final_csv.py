@@ -2,8 +2,13 @@
 
 CSV-03: this is the single hard external compatibility boundary in the project — the R script
 is not modified. D-09: Date is the day/measurement-folder date. A measurement row whose
-(date,batch) has no calibration match raises loudly (Phase-1 form of CAL-03/CSV-04 — the formal
-hard-fail contract is Phase 2, but Phase 1 must never fabricate a factor).
+(date,batch) has no calibration match raises loudly, naming BOTH the unmatched session (CAL-03:
+the session has no ruler calibration at all) AND the affected thread id(s) (CSV-04: the specific
+thread row(s) left unmatched by the merge) — before any output is written, so a hard-failed run
+never produces a partial final.csv. An empty/missing calibration.csv is treated as zero
+calibration rows rather than raising a cryptic pandas error (CAL-03). On hard-fail, any
+pre-existing output_csv from a prior run is removed so a failed run cannot masquerade as a
+current result (Pitfall 4).
 """
 from __future__ import annotations
 
@@ -17,6 +22,8 @@ EXACT_R_SCRIPT_COLUMNS = [
     "Avg diameter(px)", "StDev(px)", "AvgDiameter(mm)", "StDev(mm)",
 ]
 
+CALIBRATION_COLUMNS = ["date", "batch", "px_per_cm", "ruler_source_path"]
+
 
 def _render_date(iso_date: str) -> str:
     """ISO YYYY-MM-DD -> M/D/YY (no leading zeros, 2-digit year), matching the ImageJ sample style."""
@@ -24,9 +31,34 @@ def _render_date(iso_date: str) -> str:
     return f"{int(month)}/{int(day)}/{year[2:]}"
 
 
+def _read_calibration(calibration_csv: Path) -> pd.DataFrame:
+    """Read calibration.csv as zero calibration rows if the file is empty, instead of letting
+    pandas raise a bare EmptyDataError (CAL-03: an empty/missing calibration file must still
+    produce a clear, named hard-fail via the unmatched-session guard below)."""
+    try:
+        return pd.read_csv(calibration_csv, dtype=str)
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame(columns=CALIBRATION_COLUMNS)
+
+
+def _unmatched_hard_fail_message(unmatched: pd.DataFrame) -> str:
+    """Name BOTH the unmatched (date,batch) session(s) (CAL-03) AND the affected thread id(s)
+    (CSV-04) so an operator can trace the failure back to the source data (Pitfall 4)."""
+    sessions = sorted(set(zip(unmatched["date"], unmatched["batch"])))
+    parts = []
+    for date, batch in sessions:
+        threads = sorted(
+            unmatched.loc[(unmatched["date"] == date) & (unmatched["batch"] == batch), "thread"]
+        )
+        parts.append(f"(date={date}, batch={batch!r}) thread(s)={threads}")
+    return "no matching calibration factor for session(s): " + "; ".join(parts)
+
+
 def build_final_csv(measurements_csv: Path, calibration_csv: Path, output_csv: Path) -> pd.DataFrame:
+    output_csv = Path(output_csv)
+
     measurements = pd.read_csv(measurements_csv, dtype=str)
-    calibration = pd.read_csv(calibration_csv, dtype=str)
+    calibration = _read_calibration(calibration_csv)
 
     measurements["batch"] = measurements["batch"].fillna("")
     calibration["batch"] = calibration["batch"].fillna("")
@@ -43,11 +75,9 @@ def build_final_csv(measurements_csv: Path, calibration_csv: Path, output_csv: P
 
     unmatched = merged[merged["px_per_cm"].isna()]
     if not unmatched.empty:
-        sessions = sorted(set(zip(unmatched["date"], unmatched["batch"])))
-        raise ValueError(
-            "no matching calibration factor for session(s): "
-            + ", ".join(f"(date={d}, batch={b!r})" for d, b in sessions)
-        )
+        if output_csv.exists():
+            output_csv.unlink()
+        raise ValueError(_unmatched_hard_fail_message(unmatched))
 
     merged["AvgDiameter(mm)"] = merged["avg_diameter_px"] / merged["px_per_cm"] * 10
     merged["StDev(mm)"] = merged["stdev_px"] / merged["px_per_cm"] * 10
@@ -65,7 +95,6 @@ def build_final_csv(measurements_csv: Path, calibration_csv: Path, output_csv: P
         "StDev(mm)": merged["StDev(mm)"],
     })[EXACT_R_SCRIPT_COLUMNS]
 
-    output_csv = Path(output_csv)
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(output_csv, index=False)
     return out
