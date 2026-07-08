@@ -33,6 +33,10 @@ Prove the full pipeline shape end-to-end: click on a thread photo → SAM2 mask 
 - Exact skeleton/distance-transform implementation details (skimage function calls, mask cleanup/smoothing before skeletonization) — left to research/planning, not discussed with user.
 - CSV intermediate file layout between the three stage scripts (e.g., a measurements.csv + a calibration.csv joined by build_csv.py) — implementation detail, not a user-facing decision.
 
+### Search-first findings (Step 3)
+- **D-08:** No lightweight existing package beats OpenCV+matplotlib for the bespoke click/erase loop (D-01) — confirmed this is the standard minimal SAM2 interactive-correction pattern, not a gap worth filling with a new dependency.
+- SAM2's own point-prompt API natively supports negative points (`label=0`) to exclude a region from the mask, in addition to positive points. Correction (e.g. removing a needle) should try "click a negative point on the bad region" first, falling back to manual polygon/pixel erase on the mask raster only if a negative point doesn't cleanly separate thread from needle. Cheaper than building a full polygon-erase tool as the primary mechanism.
+
 </decisions>
 
 <canonical_refs>
