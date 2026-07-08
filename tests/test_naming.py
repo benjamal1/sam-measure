@@ -83,6 +83,32 @@ def test_canonical_stem_nested_omits_no_segments():
     assert " " not in stem
 
 
+def test_canonical_stem_rejects_thread_with_underscore():
+    """A human-typed thread number (D-07) containing '_' would corrupt stem_to_fields'
+    inverse parsing — must raise loudly instead of silently emitting a broken stem."""
+    meta = PhotoMetadata(
+        batch="8", batch_start_date=date(2026, 4, 24), condition="Poststretch",
+        day="12", date=date(2026, 5, 11), thread=None, source_path=Path("x"),
+    )
+
+    with pytest.raises(ValueError):
+        canonical_stem(meta, thread="5_11")
+
+
+def test_canonical_stem_rejects_thread_with_whitespace_or_slash():
+    meta = PhotoMetadata(
+        batch="8", batch_start_date=date(2026, 4, 24), condition="Poststretch",
+        day="12", date=date(2026, 5, 11), thread=None, source_path=Path("x"),
+    )
+
+    with pytest.raises(ValueError):
+        canonical_stem(meta, thread="5 11")
+    with pytest.raises(ValueError):
+        canonical_stem(meta, thread="5/11")
+    with pytest.raises(ValueError):
+        canonical_stem(meta, thread="")
+
+
 def test_canonical_stem_flat_omits_empty_batch_and_condition():
     meta = PhotoMetadata(
         batch="",

@@ -6,12 +6,15 @@ prompted at click time (not inferable from a nested filename).
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 from segment.click_loop import run_click_loop
 from segment.export import export_mask
 from segment.naming import canonical_stem, parse_flat_path, parse_photo_path
 from segment.sam2_session import load_predictor
+
+_VALID_THREAD_RE = re.compile(r"^[^_/\\\s]+$")
 
 
 def _derive_metadata(photo_path: Path, nextcloud_root: Path | None, date: str | None, condition: str | None):
@@ -21,6 +24,15 @@ def _derive_metadata(photo_path: Path, nextcloud_root: Path | None, date: str | 
         except ValueError:
             pass
     return parse_flat_path(photo_path)
+
+
+def _prompt_for_thread(photo_name: str) -> str:
+    """Re-prompt until a canonical_stem-safe thread identifier is given (no '_', '/', whitespace)."""
+    while True:
+        thread = input(f"Thread number for {photo_name}: ").strip()
+        if _VALID_THREAD_RE.match(thread):
+            return thread
+        print("Invalid thread identifier — must not contain '_', '/', or whitespace. Try again.")
 
 
 def main() -> None:
@@ -38,7 +50,7 @@ def main() -> None:
 
     for photo_path in sorted(args.input_dir.glob("*.JPG")) + sorted(args.input_dir.glob("*.jpg")):
         meta = _derive_metadata(photo_path, args.nextcloud_root, args.date, args.condition)
-        thread = meta.thread or input(f"Thread number for {photo_path.name}: ").strip()
+        thread = meta.thread or _prompt_for_thread(photo_path.name)
 
         from PIL import Image
         import numpy as np

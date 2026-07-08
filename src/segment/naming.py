@@ -103,7 +103,16 @@ def parse_flat_path(photo_path: Path) -> PhotoMetadata:
 
 
 def canonical_stem(meta: PhotoMetadata, thread: str) -> str:
-    """Build a collision-resistant filename stem: no path separators, no spaces."""
+    """Build a collision-resistant filename stem: no path separators, no spaces.
+
+    `thread` is often typed by a human at an interactive prompt (D-07) — reject any
+    value containing the "_" join delimiter, "/", or whitespace, since those corrupt
+    stem_to_fields' inverse parsing rather than merely producing an ugly filename.
+    """
+    if not thread or re.search(r"[_/\\\s]", thread):
+        raise ValueError(
+            f"invalid thread identifier {thread!r}: must not contain '_', '/', or whitespace"
+        )
     parts = [meta.date.isoformat()]
     if meta.batch:
         parts.append(f"batch{meta.batch}")
