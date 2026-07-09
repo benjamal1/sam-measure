@@ -15,21 +15,21 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Mask Export & Naming
 
-- [ ] **EXPT-01**: Exported masks are named using identifying metadata (date, batch, condition, thread number) derived from context at export time — not from the original nested folder structure
+- [x] **EXPT-01**: Exported masks are named using identifying metadata (date, batch, condition, thread number) derived from context at export time — not from the original nested folder structure
 - [ ] **EXPT-02**: Raw source images on Nextcloud are never modified or moved by the export process
 - [ ] **EXPT-03**: An overlay QC image (mask drawn over original photo) is saved alongside each exported mask for visual audit
 - [ ] **EXPT-04**: Re-running export on already-processed images does not duplicate or clobber existing masks (idempotent/skippable)
 
 ### Batch Measurement
 
-- [ ] **MEAS-01**: A batch script computes pixel area for every exported mask
-- [ ] **MEAS-02**: A batch script computes average diameter and standard deviation (px) per thread from its mask, using a method comparable to the existing ImageJ perpendicular edge-tracing output (not simple bounding-box width)
+- [x] **MEAS-01**: A batch script computes pixel area for every exported mask
+- [x] **MEAS-02**: A batch script computes average diameter and standard deviation (px) per thread from its mask, using a method comparable to the existing ImageJ perpendicular edge-tracing output (not simple bounding-box width)
 - [ ] **MEAS-03**: Measurement logic is validated against existing ImageJ output on a shared sample set before being trusted on new data
 
 ### Calibration
 
-- [ ] **CAL-01**: User can process a photo of a ruler to derive a pixels-per-cm conversion factor
-- [ ] **CAL-02**: Conversion factor is computed and stored per session (date/batch), not as one global constant
+- [x] **CAL-01**: User can process a photo of a ruler to derive a pixels-per-cm conversion factor
+- [x] **CAL-02**: Conversion factor is computed and stored per session (date/batch), not as one global constant
 - [x] **CAL-03**: Pipeline hard-fails (does not silently default or skip) when a thread's session has no matching ruler calibration
 
 ### CSV Assembly
@@ -53,7 +53,7 @@ Deferred to future release. Tracked but not in current roadmap.
 ### Workflow Quality-of-Life
 
 - **QOL-01**: Keyboard-shortcut-driven review queue for clicking through many images quickly
-- **QOL-02**: Statistical outlier flagging on the final CSV (flag suspect measurements, don't auto-delete)
+- [x] **QOL-02**: Statistical outlier flagging on the final CSV (flag suspect measurements, don't auto-delete) — pulled forward into Phase 2 (plan 02-04) per direct user request; see `src/validate/outliers.py`
 - **QOL-03**: Resume support that explicitly tracks progress through a batch (beyond simple output-exists skip)
 
 ### Measurement Refinement
@@ -96,6 +96,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CAL-03 | Phase 2 | Complete |
 | CSV-04 | Phase 2 | Complete |
 | CSV-05 | Phase 2 | Pending |
+| QOL-02 | Phase 2 (plan 02-04) | Complete (pulled forward from v2) |
 | CLN-01 | Phase 3 | Pending |
 | CLN-02 | Phase 3 | Pending |
 | CLN-03 | Phase 3 | Pending |

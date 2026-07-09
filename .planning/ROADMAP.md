@@ -55,7 +55,9 @@ Decimal phases appear between their surrounding integers in numeric order.
   4. A thread row that can't be matched to a calibration factor during CSV assembly hard-fails the run instead of being silently skipped or nulled out
   5. Each pipeline run produces a manifest/log recording every input processed, every output written, and which conversion factor was applied to which thread
 
-**Plans**: 1/3 plans executed
+**Plans**: 2/4 plans executed
+
+- [x] 02-04-PLAN.md
 
 - [ ] 02-01-PLAN.md — Idempotent batch export + run manifest (EXPT-04, CSV-05) [wave 1]
 - [x] 02-02-PLAN.md — Hard-fail calibration contracts, no partial/stale CSV (CAL-03, CSV-04) [wave 1]
@@ -83,6 +85,6 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Walking Skeleton — Single-Thread Click-to-CSV | 5/5 | Complete (verified passed) | 2026-07-08 |
-| 2. Batch Hardening & Validation | 1/3 | In Progress|  |
+| 2. Batch Hardening & Validation | 2/4 | In Progress|  |
 | 3. Historical Folder Cleanup | 0/TBD | Not started | - |
 </content>

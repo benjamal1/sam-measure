@@ -6,14 +6,14 @@ current_phase: 1
 current_phase_name: Walking Skeleton — Single-Thread Click-to-CSV
 status: in_progress
 stopped_at: Phase 2 context gathered [auto]
-last_updated: "2026-07-08T20:00:53.131Z"
+last_updated: "2026-07-09T04:41:04.246Z"
 last_activity: 2026-07-08
 last_activity_desc: Phase 1 fully implemented, reviewed, and verified in an overnight autonomous session
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 8
-  completed_plans: 6
+  total_plans: 9
+  completed_plans: 7
   percent: 33
 ---
 
@@ -56,6 +56,7 @@ Progress: [███░░░░░░░] 33%
 
 *Updated after each plan completion*
 | Phase 02 P02 | 25min | 2 tasks | 2 files |
+| Phase 02 P04 | 15min | 6 tasks | 15 files |
 
 ## Accumulated Context
 
@@ -68,6 +69,9 @@ Recent decisions affecting current work:
 - Roadmap: MEAS-03 (ImageJ validation), CAL-03/CSV-04 (hard-fail safety nets), CSV-05 (manifest log), and EXPT-04 (idempotent export) deferred to Phase 2 — these are batch-scale robustness concerns, not needed to prove the walking skeleton in Phase 1.
 - [Phase 02]: CAL-03 and CSV-04 share one unmatched-guard code path; error message names both session and thread id(s)
 - [Phase 02]: Empty calibration.csv normalized to zero-row DataFrame at read boundary, producing clear ValueError instead of bare EmptyDataError
+- [Phase 02-04]: Manual condition/thread resolution stays non-interactive for flat-legacy/explicit-override paths (explicit > guess > prompt), preserving EXPT-04 idempotency tests byte-for-byte
+- [Phase 02-04]: Multi-mask-per-photo required consequential changes to segment_export.py's on_accept (not just click_loop.py) so each accept resolves its own thread independently
+- [Phase 02-04]: build_final_csv returns the same extended DataFrame written to final.csv (9 exact + 6 appended columns); widened two literal exact-column assertions in tests/test_hard_fail_calibration.py to prefix checks since they were structurally incompatible with the plan's own must-have
 
 ### Pending Todos
 
@@ -93,7 +97,7 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-08T19:59:40.720Z
+Last session: 2026-07-09T04:40:12.125Z
 Stopped at: Phase 2 context gathered [auto]
 Resume file: .planning/phases/02-batch-hardening-validation/02-CONTEXT.md
 
