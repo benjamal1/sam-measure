@@ -143,6 +143,12 @@ def run_click_loop(
     import matplotlib.patches as mpatches
     import matplotlib.pyplot as plt
 
+    # Safety net: close any figure left open from a prior photo before opening a new one.
+    # plt.close(fig) at done-time (below) should already handle this, but some backends
+    # (observed: macOS) can leave a stale window rendered if the close doesn't fully take
+    # effect before the next plt.subplots() — this guarantees a clean slate regardless.
+    plt.close("all")
+
     state = ClickLoopState(predictor=predictor, image_rgb=image_rgb, on_accept=on_accept)
 
     fig, ax = plt.subplots()
