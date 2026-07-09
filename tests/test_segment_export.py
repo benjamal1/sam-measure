@@ -1,9 +1,17 @@
 """Recursive folder walk + manual condition/thread override coverage for export_folder.
 
 Real photo pixel content is irrelevant here — these tests exercise discovery/ruler-exclusion
-and the metadata-resolution seam (explicit override > path-parsed guess > interactive prompt),
-not SAM2 inference. click_loop is stubbed via DI, matching the existing test_idempotent_export.py
+and the metadata-resolution seam (explicit override > path-parsed guess > in-canvas label,
+the latter simulated by the fake click_loop calling on_label_submit directly), not SAM2
+inference. click_loop is stubbed via DI, matching the existing test_idempotent_export.py
 pattern, so no matplotlib/display or real segmentation is invoked.
+
+Labeling itself (condition/thread entry) now happens INSIDE click_loop (an in-canvas
+TextBox widget — see test_click_loop.py for that state machine's own coverage) — from
+export_folder's point of view, click_loop is a black box that eventually calls
+on_label_submit(mask, condition, thread) zero or more times per photo. These fakes simulate
+that contract directly instead of the old prompt_thread/prompt_more_threads DI hooks, which
+no longer exist (labeling isn't resolved in this module anymore).
 """
 from pathlib import Path
 
@@ -20,16 +28,20 @@ def _write_photo(path: Path) -> None:
 
 
 def _accepting_click_loop(seen: list) -> callable:
-    def _loop(predictor, image_rgb, on_accept, photo_path=None):
+    """Simulates the legacy fast path: calls on_label_submit ONCE with whatever
+    known_condition/known_thread export_folder already resolved (explicit override or a
+    flat-legacy filename-derived guess) — used wherever both end up known one way or
+    another, matching what the real click_loop's auto-advance fast path would do."""
+    def _loop(predictor, image_rgb, on_label_submit, photo_path=None, known_condition=None, known_thread=None):
         seen.append(image_rgb.shape)
         mask = np.zeros(image_rgb.shape[:2], dtype=bool)
         mask[2:5, 2:5] = True
-        on_accept(mask)
+        on_label_submit(mask, known_condition, known_thread)
 
     return _loop
 
 
-def _raising_click_loop(predictor, image_rgb, on_accept, photo_path=None):
+def _raising_click_loop(predictor, image_rgb, on_label_submit, photo_path=None, known_condition=None, known_thread=None):
     raise AssertionError("click_loop must not be invoked in this test")
 
 
@@ -40,20 +52,24 @@ def test_export_folder_recursively_discovers_nested_tree_and_skips_ruler(data_ro
     _write_photo(root / "ruler_04-25-26.JPG")
     _write_photo(root / "Ruler_lowercase.JPG")
 
-    def _thread_by_name(photo_name: str, guess) -> str:
-        return "01" if "0001" in photo_name else "02"
-
     seen: list = []
+
+    def _thread_by_name_click_loop(predictor, image_rgb, on_label_submit, photo_path=None,
+                                    known_condition=None, known_thread=None):
+        seen.append(image_rgb.shape)
+        mask = np.zeros(image_rgb.shape[:2], dtype=bool)
+        mask[2:5, 2:5] = True
+        thread = "01" if "0001" in photo_path.name else "02"
+        on_label_submit(mask, known_condition, thread)
+
     manifest = export_folder(
         input_dir=data_root.parent / "input",
         masks_dir=data_root / "masks",
         qc_dir=data_root / "qc",
         predictor=None,
-        click_loop=_accepting_click_loop(seen),
+        click_loop=_thread_by_name_click_loop,
         nextcloud_root=data_root.parent / "input",
         condition="PreStretch",
-        prompt_thread=_thread_by_name,
-        prompt_more_threads=lambda name: False,
     )
 
     # 2 distinct thread photos processed (ruler_*/Ruler_* excluded regardless of case).
@@ -114,16 +130,12 @@ def test_manual_condition_and_thread_override_wins_over_path_guess(data_root):
     assert "prestretch" not in stem
 
 
-def test_export_folder_flat_legacy_thread_guess_used_without_prompting_when_no_override(data_root, monkeypatch):
+def test_export_folder_flat_legacy_thread_guess_used_without_prompting_when_no_override(data_root):
     """Preserves pre-existing EXPT-04 behavior: a flat-legacy photo's filename-derived thread
-    is used directly (no interactive prompt) when no explicit override is supplied."""
+    is passed through as known_thread (no in-canvas label needed) when no explicit override
+    is supplied."""
     root = data_root.parent / "input" / "08-03-25"
     _write_photo(root / "5.11.JPG")
-
-    def _hang(*a, **k):
-        raise AssertionError("must not prompt when a path-derived thread guess is available")
-
-    monkeypatch.setattr("builtins.input", _hang)
 
     seen: list = []
     manifest = export_folder(
@@ -138,46 +150,31 @@ def test_export_folder_flat_legacy_thread_guess_used_without_prompting_when_no_o
     assert "thread5.11" in manifest["outputs"][0]["stem"]
 
 
-def test_on_accept_supports_multiple_masks_per_photo_via_click_loop_return_contract(data_root):
-    """A nested-tree photo with no thread guess: two accepts on the same photo (simulated by
-    a fake click_loop that calls on_accept twice, honoring its reclick-vs-advance return
-    value like the real click_loop does) must produce two independent, distinctly-stemmed
-    masks — not a collision or a silent overwrite."""
+def test_multiple_labels_per_photo_via_click_loop_calling_on_label_submit_repeatedly(data_root):
+    """A nested-tree photo with no thread guess: two on_label_submit calls on the same photo
+    (simulated by a fake click_loop that calls it twice, like the real click_loop does across
+    two 'a'-then-type-then-Enter cycles before the user finally presses 'n') must produce two
+    independent, distinctly-stemmed masks — not a collision or a silent overwrite."""
     tree_root = data_root.parent / "input"
     root = tree_root / "PreStretch" / "Batch 8 04-24-26" / "D1 04-25-26"
     photo = root / "IMG_0001.JPG"
     _write_photo(photo)
 
-    thread_values = ["01", "02"]
-    accept_count = {"n": 0}
-
-    def _next_thread(name, guess):
-        value = thread_values[accept_count["n"]]
-        return value
-
-    def _more_threads(name):
-        # Reclick after the first accept, advance after the second.
-        return accept_count["n"] == 0
-
-    def _two_accept_click_loop(predictor, image_rgb, on_accept, photo_path=None):
-        for i in range(2):
-            accept_count["n"] = i
+    def _two_label_click_loop(predictor, image_rgb, on_label_submit, photo_path=None,
+                               known_condition=None, known_thread=None):
+        for thread_value in ("01", "02"):
             mask = np.zeros(image_rgb.shape[:2], dtype=bool)
             mask[2:5, 2:5] = True
-            advance = on_accept(mask)
-            if advance:
-                break
+            on_label_submit(mask, known_condition, thread_value)
 
     manifest = export_folder(
         input_dir=root,
         masks_dir=data_root / "masks",
         qc_dir=data_root / "qc",
         predictor=None,
-        click_loop=_two_accept_click_loop,
+        click_loop=_two_label_click_loop,
         nextcloud_root=tree_root,
         condition="PreStretch",
-        prompt_thread=_next_thread,
-        prompt_more_threads=_more_threads,
     )
 
     stems = [o["stem"] for o in manifest["outputs"]]
@@ -259,13 +256,17 @@ def test_second_run_skips_already_processed_photo_without_ever_opening_click_loo
     masks_dir = data_root / "masks"
     qc_dir = data_root / "qc"
 
-    # First run: label the one thread on this photo, advance.
+    def _label_thread_01(predictor, image_rgb, on_label_submit, photo_path=None,
+                         known_condition=None, known_thread=None):
+        mask = np.zeros(image_rgb.shape[:2], dtype=bool)
+        mask[2:5, 2:5] = True
+        on_label_submit(mask, known_condition, "01")
+
+    # First run: label the one thread on this photo.
     export_folder(
         input_dir=root, masks_dir=masks_dir, qc_dir=qc_dir, predictor=None,
-        click_loop=_accepting_click_loop([]),
+        click_loop=_label_thread_01,
         nextcloud_root=root, condition="PreStretch",
-        prompt_thread=lambda name, guess: "01",
-        prompt_more_threads=lambda name: False,
     )
 
     # Second run ("restart after a fix"): must skip the photo without ever calling click_loop.
@@ -286,21 +287,31 @@ def test_force_reprocesses_a_previously_completed_photo(data_root):
     masks_dir = data_root / "masks"
     qc_dir = data_root / "qc"
 
+    def _label_thread_01(predictor, image_rgb, on_label_submit, photo_path=None,
+                         known_condition=None, known_thread=None):
+        mask = np.zeros(image_rgb.shape[:2], dtype=bool)
+        mask[2:5, 2:5] = True
+        on_label_submit(mask, known_condition, "01")
+
     export_folder(
         input_dir=root, masks_dir=masks_dir, qc_dir=qc_dir, predictor=None,
-        click_loop=_accepting_click_loop([]),
+        click_loop=_label_thread_01,
         nextcloud_root=root, condition="PreStretch",
-        prompt_thread=lambda name, guess: "01",
-        prompt_more_threads=lambda name: False,
     )
 
     seen: list = []
+
+    def _label_thread_01_tracked(predictor, image_rgb, on_label_submit, photo_path=None,
+                                  known_condition=None, known_thread=None):
+        seen.append(image_rgb.shape)
+        mask = np.zeros(image_rgb.shape[:2], dtype=bool)
+        mask[2:5, 2:5] = True
+        on_label_submit(mask, known_condition, "01")
+
     manifest = export_folder(
         input_dir=root, masks_dir=masks_dir, qc_dir=qc_dir, predictor=None,
-        click_loop=_accepting_click_loop(seen),
+        click_loop=_label_thread_01_tracked,
         nextcloud_root=root, condition="PreStretch", force=True,
-        prompt_thread=lambda name, guess: "01",
-        prompt_more_threads=lambda name: False,
     )
 
     assert len(seen) == 1  # --force reopened the photo despite it being previously completed
@@ -308,7 +319,7 @@ def test_force_reprocesses_a_previously_completed_photo(data_root):
 
 
 def test_skipping_a_photo_with_n_also_marks_it_processed(data_root):
-    """Pressing 'n' (no thread accepted at all) still counts as a concluded session for that
+    """Pressing 'n' (no thread labeled at all) still counts as a concluded session for that
     photo — it must not reopen every future run either."""
     root = data_root.parent / "input"
     photo = root / "PreStretch" / "Batch 8 04-24-26" / "D1 04-25-26" / "IMG_0001.JPG"
@@ -317,8 +328,9 @@ def test_skipping_a_photo_with_n_also_marks_it_processed(data_root):
     masks_dir = data_root / "masks"
     qc_dir = data_root / "qc"
 
-    def _skip_everything_click_loop(predictor, image_rgb, on_accept, photo_path=None):
-        pass  # simulates pressing 'n' — window closes without ever calling on_accept
+    def _skip_everything_click_loop(predictor, image_rgb, on_label_submit, photo_path=None,
+                                     known_condition=None, known_thread=None):
+        pass  # simulates pressing 'n' — window closes without ever calling on_label_submit
 
     export_folder(
         input_dir=root, masks_dir=masks_dir, qc_dir=qc_dir, predictor=None,
@@ -350,19 +362,18 @@ def test_quit_all_stops_processing_remaining_photos(data_root):
 
     seen: list = []
 
-    def _quit_after_one_photo(predictor, image_rgb, on_accept, photo_path=None):
+    def _quit_after_one_photo(predictor, image_rgb, on_label_submit, photo_path=None,
+                               known_condition=None, known_thread=None):
         seen.append(photo_path)
         mask = np.zeros(image_rgb.shape[:2], dtype=bool)
         mask[2:5, 2:5] = True
-        on_accept(mask)
+        on_label_submit(mask, known_condition, "01")
         return _FakeState()
 
     export_folder(
         input_dir=root, masks_dir=data_root / "masks", qc_dir=data_root / "qc", predictor=None,
         click_loop=_quit_after_one_photo,
         nextcloud_root=root, condition="PreStretch",
-        prompt_thread=lambda name, guess: "01",
-        prompt_more_threads=lambda name: False,
     )
 
     assert len(seen) == 1  # stopped after the first photo, never opened the second
@@ -382,8 +393,9 @@ def test_quit_before_any_accept_does_not_mark_photo_processed(data_root):
     class _QuitImmediatelyState:
         quit_all = True
 
-    def _quit_without_accepting(predictor, image_rgb, on_accept, photo_path=None):
-        return _QuitImmediatelyState()  # 'q' pressed before ever clicking/accepting
+    def _quit_without_accepting(predictor, image_rgb, on_label_submit, photo_path=None,
+                                 known_condition=None, known_thread=None):
+        return _QuitImmediatelyState()  # 'q' pressed before ever clicking/labeling
 
     export_folder(
         input_dir=root, masks_dir=masks_dir, qc_dir=qc_dir, predictor=None,
@@ -394,12 +406,18 @@ def test_quit_before_any_accept_does_not_mark_photo_processed(data_root):
     # Rerun with a click_loop that would raise if invoked — the photo must still be OPEN,
     # i.e. reprocessed, since nothing was ever actually labeled on it last time.
     seen: list = []
+
+    def _label_thread_01(predictor, image_rgb, on_label_submit, photo_path=None,
+                         known_condition=None, known_thread=None):
+        seen.append(image_rgb.shape)
+        mask = np.zeros(image_rgb.shape[:2], dtype=bool)
+        mask[2:5, 2:5] = True
+        on_label_submit(mask, known_condition, "01")
+
     export_folder(
         input_dir=root, masks_dir=masks_dir, qc_dir=qc_dir, predictor=None,
-        click_loop=_accepting_click_loop(seen),
+        click_loop=_label_thread_01,
         nextcloud_root=root, condition="PreStretch",
-        prompt_thread=lambda name, guess: "01",
-        prompt_more_threads=lambda name: False,
     )
 
     assert len(seen) == 1  # photo was reopened — the bug this test guards against

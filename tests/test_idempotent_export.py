@@ -39,7 +39,8 @@ def _real_08_04_25_photos():
     return sorted(d.glob("*.JPG"))
 
 
-def _raising_click_loop(predictor, image_rgb, on_accept):
+def _raising_click_loop(predictor, image_rgb, on_label_submit, photo_path=None,
+                         known_condition=None, known_thread=None):
     raise AssertionError("click_loop must not be invoked for an already-exported photo")
 
 
@@ -88,11 +89,12 @@ def test_export_folder_force_invokes_click_loop_for_seeded_photo(data_root):
 
     invoked = []
 
-    def _tracking_click_loop(predictor, image_rgb, on_accept):
+    def _tracking_click_loop(predictor, image_rgb, on_label_submit, photo_path=None,
+                              known_condition=None, known_thread=None):
         invoked.append(True)
         real_shaped_mask = np.zeros(image_rgb.shape[:2], dtype=bool)
         real_shaped_mask[10:20, 10:20] = True
-        on_accept(real_shaped_mask)
+        on_label_submit(real_shaped_mask, known_condition, known_thread)
 
     manifest = export_folder(
         input_dir=photo.parent, masks_dir=masks_dir, qc_dir=qc_dir,

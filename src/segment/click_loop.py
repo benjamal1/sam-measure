@@ -1,29 +1,37 @@
-"""Interactive matplotlib click UI (D-01): click to segment, correct, accept, export.
+"""Interactive matplotlib click UI (D-01): click to segment, correct, label in-canvas, export.
 
 Bespoke loop, not napari — zero third-party SAM2-plugin dependency risk (D-01).
-Left click = positive point, right click = negative point, 'a' = accept (export),
-'e' = raster-erase drag mode on the accepted mask, 'n' = skip to next photo.
+Left click = positive point, right click = negative point, 'a' = accept (opens an in-canvas
+TextBox for condition/thread, whichever is unknown), 'e' = raster-erase drag mode on the
+accepted mask, 'u' = undo, 'n' = advance to next photo, 'q' = quit the whole run.
 
 CRITICAL (PITFALLS Pitfall 2): click state MUST be reset per photo — stale points from
 a prior image must never leak into the next prediction. `ClickLoopState.reset()` is the
 single place that happens; callers must invoke it at the start of every new photo.
 
-Multi-thread-per-photo (this task): photo-level state (image_rgb, predictor) persists
-across multiple accepts on the SAME photo; only click-state (points/labels/current_mask)
-resets between accepts. This is a NEW reset point in addition to the existing per-new-photo
-reset — both call the exact same `ClickLoopState.reset()`, just at a different trigger.
-`on_accept`'s return value decides which: a truthy return means "advance" (this photo is
-done, `state.done` is set so the event loop closes/moves on); a falsy return means "reclick"
-(stay on this photo, ready for the next thread's click). 'n' (skip) still moves to the next
-photo without accepting, same as before, and also sets `state.done`.
+Multi-thread-per-photo: photo-level state (image_rgb, predictor) persists across multiple
+accepts on the SAME photo; only click-state (points/labels/current_mask) resets between
+accepts. Advance to the next photo is ALWAYS an explicit 'n' press — there is no y/n
+"label another thread?" prompt anymore: after a label is submitted, the photo simply stays
+open, ready for another click, until the user presses 'n' themselves. The one exception is
+the legacy fast path (condition AND thread both already known before any clicking — an
+explicit CLI override or a flat-legacy filename-derived guess): that still auto-advances
+after one accept, since there's nothing left to label and no reason to make the user press
+an extra key.
 
-The callback logic (`handle_click`/`handle_key`) is separated from the matplotlib event
-loop plumbing (`run_click_loop`) specifically so it's testable under the Agg backend
-without a real display — this module cannot be interactively verified in an unattended
-headless session; its UX is validated by hand on the Mac (see RUNBOOK.md).
+In-canvas labeling (not a terminal prompt) is required, not just nicer: this UI is also
+driven over SSH via matplotlib's WebAgg backend (a browser tab, no local display at all) —
+there is no "terminal to refocus" in that scenario, so any prompt that isn't part of the
+same canvas/websocket session is simply unreachable.
+
+The callback logic (`handle_click`/`handle_key`/`handle_label_submit`) is separated from the
+matplotlib event loop plumbing (`run_click_loop`) specifically so it's testable under the Agg
+backend without a real display — this module cannot be interactively verified in an
+unattended headless session; its UX is validated by hand (see RUNBOOK.md).
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -32,11 +40,13 @@ import numpy as np
 from segment.mask_edit import erase_box
 from segment.sam2_session import predict_mask as _default_predict_mask
 
+_VALID_LABEL_RE = re.compile(r"^[^_/\\\s]+$")
+
 
 def _capture_frontmost_app_name() -> str | None:
-    """macOS only: name of whatever app was focused when the click window opened (almost
-    always the user's terminal) — captured so it can be reactivated later without hardcoding
-    a specific terminal app (Terminal.app, iTerm2, etc. all work the same way)."""
+    """macOS only: name of whatever app was focused when the click window opened. Kept for
+    the WINDOW TITLE convenience (see run_click_loop) — no longer used to refocus a terminal
+    for a prompt, since labeling is now in-canvas and never needs a separate app focused."""
     import sys
 
     if sys.platform != "darwin":
@@ -54,44 +64,14 @@ def _capture_frontmost_app_name() -> str | None:
         return None  # best-effort UX only — never let this block/crash the session
 
 
-_VSCODE_APP_NAMES = {"Code", "Code - Insiders", "Visual Studio Code", "Cursor", "VSCodium"}
-
-
-def _refocus_app(app_name: str | None) -> None:
-    """Reactivate app_name (macOS only) — used right before a terminal input() prompt fires
-    (condition/thread/more-threads), so the user doesn't have to click out of the plot window
-    manually to type. Best-effort: any failure is silently ignored.
-
-    A dedicated terminal app (kitty, Terminal.app, iTerm2) has nothing else to focus once
-    activated. An editor with an INTEGRATED terminal (VS Code and forks) is different —
-    `activate` only brings the whole app forward, it does not guarantee the terminal PANEL
-    (vs. the editor pane) has keyboard focus, so typed input can land in the wrong place.
-    For those, also send the app's own terminal-focus shortcut (Cmd+` , VS Code's default)
-    right after activating.
-    """
-    import sys
-
-    if app_name is None or sys.platform != "darwin":
-        return
-    import subprocess
-
-    try:
-        subprocess.run(["osascript", "-e", f'tell application "{app_name}" to activate'], timeout=2)
-        if app_name in _VSCODE_APP_NAMES:
-            subprocess.run(
-                ["osascript", "-e", 'tell application "System Events" to keystroke "`" using {command down}'],
-                timeout=2,
-            )
-    except Exception:
-        pass
-
-
 @dataclass
 class ClickLoopState:
     predictor: object
     image_rgb: np.ndarray
     predict_fn: Callable = _default_predict_mask
-    on_accept: Callable[[np.ndarray], object] | None = None
+    on_label_submit: Callable[[np.ndarray, str, str], None] | None = None
+    known_condition: str | None = None  # pre-resolved (CLI override or path-guess) — skip prompting for it
+    known_thread: str | None = None     # pre-resolved (CLI override or flat-legacy filename) — skip prompting
     points: list[tuple[float, float]] = field(default_factory=list)
     labels: list[int] = field(default_factory=list)
     current_mask: np.ndarray | None = None
@@ -101,15 +81,21 @@ class ClickLoopState:
     quit_all: bool = False
     history: list[tuple[list, list, np.ndarray | None]] = field(default_factory=list)
 
+    # Label-collection state (in-canvas TextBox flow — see handle_label_submit)
+    label_active: bool = False
+    label_field: str | None = None          # "condition" or "thread" — which field is showing
+    label_condition_value: str | None = None
+    pending_mask: np.ndarray | None = None
+
     _MAX_HISTORY = 20
 
     def reset(self) -> None:
         """Clear all per-photo (or per-mask, see module docstring) click state.
 
-        MUST be called before starting a new image, AND after every accept (whether
-        reclicking the same photo for another thread or advancing) — same method, two
-        different trigger points, never confuse the two. Undo history is per-mask-in-progress
-        too — it must never let you undo back into an already-exported prior mask.
+        MUST be called before starting a new image, AND after every label submission (ready
+        for the next thread's click) — same method, two different trigger points, never
+        confuse the two. Undo history is per-mask-in-progress too — it must never let you
+        undo back into an already-exported prior mask.
         """
         self.points = []
         self.labels = []
@@ -117,6 +103,10 @@ class ClickLoopState:
         self.erase_mode = False
         self.erase_drag_start = None
         self.history = []
+        self.label_active = False
+        self.label_field = None
+        self.label_condition_value = None
+        self.pending_mask = None
 
     def push_history(self) -> None:
         """Snapshot points/labels/current_mask BEFORE a mutating click or erase, so 'u' can
@@ -137,9 +127,14 @@ def handle_click(state: ClickLoopState, event) -> None:
     """Mouse-DOWN handler. button 1 = left = positive point (label 1) OR erase-drag start
     (in erase mode); button 3 = right = negative point (label 0, ignored in erase mode).
 
+    No-op while a label TextBox is active — clicking the photo mid-typing would otherwise
+    silently mutate the mask that's about to be exported.
+
     Erase is a click-drag box select (not a per-click radius) for more precise removal of
     unwanted blobs (e.g. a needle) — the actual erase happens on mouse-UP, see handle_release.
     """
+    if state.label_active:
+        return
     if event.xdata is None or event.ydata is None:
         return
 
@@ -167,10 +162,10 @@ def handle_click(state: ClickLoopState, event) -> None:
 def handle_release(state: ClickLoopState, event) -> None:
     """Mouse-UP handler: completes an erase-box drag started in handle_click.
 
-    No-op outside erase mode or if no drag was started (e.g. release without a matching
-    press, or the press landed off-canvas so xdata/ydata was None and no start was recorded).
+    No-op outside erase mode, while labeling, or if no drag was started (e.g. release
+    without a matching press, or the press landed off-canvas so xdata/ydata was None).
     """
-    if not state.erase_mode or state.erase_drag_start is None:
+    if state.label_active or not state.erase_mode or state.erase_drag_start is None:
         return
     if event.xdata is None or event.ydata is None:
         state.erase_drag_start = None
@@ -181,17 +176,24 @@ def handle_release(state: ClickLoopState, event) -> None:
 
 
 def handle_key(state: ClickLoopState, event) -> None:
+    if state.label_active:
+        return  # the TextBox widget owns keyboard input while a label is being typed
+
     if event.key == "a":
-        if state.current_mask is not None and state.on_accept is not None:
+        if state.current_mask is not None and state.on_label_submit is not None:
             if not state.current_mask.any():
                 print("mask is empty (fully erased) — nothing to accept, keep clicking or press 'n' to skip")
                 return
-            advance = state.on_accept(state.current_mask)
-            # Reset click-state after EVERY accept (Pitfall-2 guard) — a second thread's
-            # click on this same photo must never see the first thread's points/mask.
-            state.reset()
-            if advance:
+            state.pending_mask = state.current_mask
+            if state.known_condition is not None and state.known_thread is not None:
+                # Legacy fast path: nothing to label, export immediately and auto-advance —
+                # preserves pre-existing behavior for CLI overrides / flat-legacy filenames.
+                state.on_label_submit(state.pending_mask, state.known_condition, state.known_thread)
+                state.reset()
                 state.done = True
+            else:
+                state.label_active = True
+                state.label_field = "condition" if state.known_condition is None else "thread"
     elif event.key == "e":
         if state.current_mask is not None:  # erase is meaningless before a mask exists
             state.erase_mode = not state.erase_mode
@@ -213,18 +215,56 @@ def handle_key(state: ClickLoopState, event) -> None:
         state.quit_all = True
 
 
+def handle_label_submit(state: ClickLoopState, text: str) -> str | None:
+    """Process one submitted TextBox value (condition or thread, whichever field is active).
+
+    Returns an error message (caller should re-show the box, unchanged field) on invalid
+    input, or None on success. On success, either advances to the next unknown field
+    (state.label_field changes, state.label_active stays True — caller shows the next box)
+    or finalizes the label (calls on_label_submit, resets click-state, state.label_active
+    becomes False — caller hides the box and redraws, ready for the next click on this photo).
+
+    Never sets state.done — advancing to the next PHOTO is always an explicit 'n' press.
+    """
+    text = text.strip()
+    if not text or not _VALID_LABEL_RE.match(text):
+        return "must not contain '_', '/', or whitespace — try again"
+
+    if state.label_field == "condition":
+        if state.known_thread is None:
+            state.label_condition_value = text
+            state.label_field = "thread"
+            return None
+        condition_value, thread_value = text, state.known_thread
+    else:
+        condition_value = state.label_condition_value if state.label_condition_value is not None else state.known_condition
+        thread_value = text
+
+    if state.on_label_submit is not None:
+        state.on_label_submit(state.pending_mask, condition_value, thread_value)
+    state.reset()
+    return None
+
+
 def run_click_loop(
-    predictor, image_rgb: np.ndarray, on_accept: Callable[[np.ndarray], object], photo_path=None
+    predictor,
+    image_rgb: np.ndarray,
+    on_label_submit: Callable[[np.ndarray, str, str], None],
+    photo_path=None,
+    known_condition: str | None = None,
+    known_thread: str | None = None,
 ) -> ClickLoopState:
     """Launch the interactive matplotlib window for ONE photo, supporting multiple
     labeled masks before the window closes. Guarded so import/construction works under
     Agg (no display) — only plt.show() requires a real display, and is only reached when
     this function is actually called with a live backend.
 
-    `on_accept` may be called more than once per photo (multi-thread-per-photo): the window
-    stays open and click-state resets after each accept, ready for the next thread's click,
-    until `on_accept` returns truthy (advance) or the user presses 'n' (skip) — either sets
-    `state.done`, which closes the window and returns control to the caller.
+    `on_label_submit(mask, condition, thread)` is called once per accepted+labeled mask —
+    purely an export/bookkeeping callback, no prompting inside it. The window stays open
+    across multiple accepts on the same photo; the user explicitly presses 'n' to advance
+    (no more y/n "another thread?" prompt) — except the legacy fast path where
+    known_condition AND known_thread are both already resolved, which still auto-advances
+    after one accept (nothing left to label).
 
     `photo_path` (optional): sets the OS window title to the full file path — matplotlib's
     default "Figure 1" title otherwise gives no clue which photo is open.
@@ -244,6 +284,7 @@ def run_click_loop(
 
     import matplotlib.patches as mpatches
     import matplotlib.pyplot as plt
+    from matplotlib.widgets import TextBox
 
     # Safety net: close any figure left open from a prior photo before opening a new one.
     # plt.close(fig) at done-time (below) should already handle this, but some backends
@@ -251,12 +292,10 @@ def run_click_loop(
     # effect before the next plt.subplots() — this guarantees a clean slate regardless.
     plt.close("all")
 
-    # Capture whatever app is focused right now (almost always the terminal that launched
-    # this run) BEFORE the plot window steals focus, so 'a' can hand focus back to it —
-    # without this, the user has to manually click the terminal to type condition/thread.
-    terminal_app = _capture_frontmost_app_name()
-
-    state = ClickLoopState(predictor=predictor, image_rgb=image_rgb, on_accept=on_accept)
+    state = ClickLoopState(
+        predictor=predictor, image_rgb=image_rgb, on_label_submit=on_label_submit,
+        known_condition=known_condition, known_thread=known_thread,
+    )
 
     fig, ax = plt.subplots()
     if photo_path is not None:
@@ -266,8 +305,10 @@ def run_click_loop(
             pass  # some backends (e.g. Agg, used in headless tests) have no window manager
 
     def _title() -> str:
+        if state.label_active:
+            return f"Type {state.label_field} and press Enter"
         base = (
-            "Left=positive, Right=negative, scroll=zoom, 'a'=accept, 'u'=undo, "
+            "Left=positive, Right=negative, scroll=zoom, 'a'=accept+label, 'u'=undo, "
             "'n'=next photo, 'q'=quit (not Ctrl+C)"
         )
         return f"[ERASE MODE — drag a box] {base}" if state.erase_mode else f"'e'=erase mode (drag a box) | {base}"
@@ -283,6 +324,34 @@ def run_click_loop(
     # click/accept/key would silently reset any zoom the user scrolled in to. None on the very
     # first draw (nothing to preserve yet).
     zoom_limits = {"xlim": None, "ylim": None}
+
+    # In-canvas label TextBox: one small axes, created once, shown/hidden as needed rather
+    # than recreated per prompt (recreating a widget's own axes on every _redraw() would lose
+    # its focus/typed-so-far state).
+    label_ax = fig.add_axes([0.3, 0.01, 0.4, 0.05])
+    label_ax.set_visible(False)
+    label_box = TextBox(label_ax, "")
+
+    def _sync_label_box():
+        if state.label_active:
+            label_ax.set_visible(True)
+            guess = known_condition if state.label_field == "condition" else known_thread
+            label_box.label.set_text(f"{state.label_field}: ")
+            label_box.set_val(guess or "")
+        else:
+            label_ax.set_visible(False)
+
+    def _on_label_submit(text):
+        error = handle_label_submit(state, text)
+        if error:
+            label_box.set_val("")
+            ax.set_title(f"{error} — {_title()}")
+            fig.canvas.draw_idle()
+            return
+        _sync_label_box()  # either moves to the next field, or hides the box (label done)
+        _redraw()
+
+    label_box.on_submit(_on_label_submit)
 
     def _redraw():
         if zoom_limits["xlim"] is not None:
@@ -311,7 +380,7 @@ def run_click_loop(
         semantics (unlike matplotlib's default toolbar zoom-rectangle, which would intercept
         left-clicks meant for SAM2 points) and doesn't need a full image re-render — it only
         changes the visible axis window into the already-drawn image/overlay."""
-        if event.xdata is None or event.ydata is None:
+        if state.label_active or event.xdata is None or event.ydata is None:
             return
         scale = 1 / 1.3 if event.button == "up" else 1.3
         xlim, ylim = ax.get_xlim(), ax.get_ylim()
@@ -327,6 +396,8 @@ def run_click_loop(
         fig.canvas.draw_idle()
 
     def _on_press(event):
+        if event.inaxes is label_ax:
+            return  # clicks inside the label box are the TextBox widget's own business
         handle_click(state, event)
         _redraw()
 
@@ -345,19 +416,20 @@ def run_click_loop(
         fig.canvas.draw_idle()  # cheap: just the patch, no full image re-render
 
     def _on_release(event):
+        if event.inaxes is label_ax:
+            return
         handle_release(state, event)
         _redraw()
 
     def _on_key(event):
-        if event.key == "a" and state.current_mask is not None and state.current_mask.any():
-            # Accept is about to (synchronously) call on_accept, which prompts for
-            # condition/thread via terminal input() — hand OS focus back to the terminal
-            # first so the user can just start typing.
-            _refocus_app(terminal_app)
+        if state.label_active:
+            return  # TextBox widget consumes its own keystrokes; nothing for us to do here
         handle_key(state, event)
         if state.done:
             plt.close(fig)
             return
+        if state.label_active:
+            _sync_label_box()
         _redraw()
 
     _redraw()
