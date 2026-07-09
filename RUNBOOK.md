@@ -196,7 +196,12 @@ ruler photo used, for full traceability.
 ## Speed
 
 The first click on each photo pays a one-time SAM2 encoder cost (photo → embedding); every
-click after that on the same photo is cheap. If it's still too slow, try the smaller `tiny`
+click after that on the same photo is cheap. In practice, the old terminal round-trip for
+condition/thread entry (now removed — see step 1's in-canvas label box) was very likely the
+actual dominant slowdown, not model size or compute — don't assume you need a bigger/smaller
+checkpoint or beefier hardware before trying the current flow first.
+
+If it's still too slow, try the smaller `tiny`
 checkpoint (faster, small accuracy tradeoff — hasn't been re-validated against ImageJ
 ground truth the way `small` has):
 
@@ -231,7 +236,12 @@ remote machine has its own monitor) open there instead of on your laptop.
 
 **Best option: matplotlib's WebAgg backend** — serves the plot over HTTP instead of a
 native window, viewable in an ordinary browser tab. No XQuartz, and it's built for network
-latency (websocket updates) rather than X11's per-pixel round-trips:
+latency (websocket updates) rather than X11's per-pixel round-trips. Needs `tornado`
+(already in `requirements.txt`, but if you set up your venv before it was added, or bare
+`pip install tornado` landed in the wrong environment — check with
+`.venv/bin/python -m pip show tornado`, and if missing, `.venv/bin/python -m pip install
+tornado` explicitly rather than bare `pip install`, which can silently install into a
+different Python than your venv):
 
 ```bash
 MPLBACKEND=WebAgg PYTHONPATH=src .venv/bin/python -m segment.segment_export --input-dir ...
