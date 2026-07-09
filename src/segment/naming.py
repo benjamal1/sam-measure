@@ -4,6 +4,11 @@ Pure module — no torch, no cv2, no file I/O beyond pathlib string ops.
 
 D-09: the canonical CSV `Date` is the day/measurement-folder date (e.g. `D12 05-11-26`),
 never the batch-start date embedded in the batch folder name (e.g. `Batch 8 04-24-26`).
+
+EXPT-01 revised: `parse_photo_path`/`parse_flat_path` results (especially `condition` and
+`thread`) are a SUGGESTED DEFAULT only — a display hint segment_export shows the user at
+label time, never authoritative. The user's manually typed value always wins when given;
+see `src/segment/segment_export.py::_resolve_field`.
 """
 from __future__ import annotations
 
