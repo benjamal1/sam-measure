@@ -311,6 +311,21 @@ def run_click_loop(
     label_ax.set_visible(False)
     label_box = TextBox(label_ax, "")
 
+    # Work around a matplotlib bug: TextBox's own internal resize_event handler
+    # (_resize, wired in TextBox.__init__ to recompute cursor rendering on window
+    # resize) is decorated with a helper that unconditionally reads event.inaxes —
+    # but a real ResizeEvent has no such attribute, so it raises AttributeError on
+    # every actual window resize. Harmless under TkAgg (native windows rarely fire
+    # a matching resize_event in practice); fatal under WebAgg, which forwards the
+    # browser's real resize events and hits this every time. _resize only affects
+    # cursor-position cosmetics inside the box — safe to disconnect outright. It's
+    # always the LAST event TextBox.__init__ connects (see matplotlib's widgets.py),
+    # so _cids[-1] is it; best-effort since this pokes a private attribute.
+    try:
+        fig.canvas.mpl_disconnect(label_box._cids[-1])
+    except Exception:
+        pass
+
     def _sync_label_box():
         if state.label_active:
             label_ax.set_visible(True)
