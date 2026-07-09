@@ -64,6 +64,8 @@ def handle_click(state: ClickLoopState, event) -> None:
         return
 
     if state.erase_mode:
+        if state.current_mask is None:
+            return  # nothing to erase yet — no-op instead of crashing
         state.current_mask = erase_region(state.current_mask, [(event.xdata, event.ydata)])
         return
 
@@ -89,7 +91,8 @@ def handle_key(state: ClickLoopState, event) -> None:
             if advance:
                 state.done = True
     elif event.key == "e":
-        state.erase_mode = not state.erase_mode
+        if state.current_mask is not None:  # erase is meaningless before a mask exists
+            state.erase_mode = not state.erase_mode
     elif event.key == "n":
         state.reset()
         state.done = True

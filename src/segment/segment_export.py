@@ -172,15 +172,16 @@ def export_folder(
     for photo_path in photos:
         guess = _derive_metadata(photo_path, nextcloud_root, date, condition)
 
-        condition_value = _resolve_field(condition, guess.condition, prompt_condition, photo_path.name)
-        meta = guess if condition_value == guess.condition else replace(guess, condition=condition_value)
-
-        # Skip-check pre-pass: only possible without prompting when the thread is already
-        # known (explicit override or flat-legacy filename-derived guess). A truly nested
-        # photo (no guess) can only get a thread by having the user label a mask, so its
-        # skip-check happens per-mask inside on_accept instead.
+        # Skip-check pre-pass: only possible without prompting when BOTH condition and thread
+        # are already known (explicit override or flat-legacy filename-derived guess) — neither
+        # requires a prompt to determine. A truly nested photo (no guess for one or both) can
+        # only get them by the user labeling a mask, so the prompt (and its skip-check) is
+        # deferred to on_accept — this also means the image window opens BEFORE any typing,
+        # since a prompt here would block before the window ever shows.
+        known_condition = condition if condition is not None else guess.condition
         known_thread = thread if thread is not None else guess.thread
-        if known_thread is not None:
+        if known_condition is not None and known_thread is not None:
+            meta = guess if known_condition == guess.condition else replace(guess, condition=known_condition)
             stem = canonical_stem(meta, known_thread)
             mask_path = masks_dir / f"{stem}.png"
             qc_path = qc_dir / f"{stem}_overlay.png"
@@ -191,8 +192,12 @@ def export_folder(
 
         image_rgb = np.array(Image.open(photo_path).convert("RGB"))
 
-        def on_accept(mask, meta=meta, image_rgb=image_rgb):
+        def on_accept(mask, guess=guess, image_rgb=image_rgb):
             nonlocal manifest
+            condition_value = condition if condition is not None else _resolve_field(
+                None, guess.condition, prompt_condition, photo_path.name
+            )
+            meta = guess if condition_value == guess.condition else replace(guess, condition=condition_value)
             mask_thread = thread if thread is not None else _resolve_field(
                 None, guess.thread, prompt_thread, photo_path.name
             )
