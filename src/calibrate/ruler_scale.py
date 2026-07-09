@@ -117,11 +117,17 @@ def calibrate_folder(
     batch: str | None = None,
     nextcloud_root: Path | None = None,
 ) -> pd.DataFrame:
-    """Interactive: calibrate every ruler*.jpg/JPG in a folder, write calibration.csv."""
+    """Interactive: calibrate every ruler*.jpg/JPG under ruler_dir (any depth), write calibration.csv.
+
+    Recursive (rglob) so a single run over the whole photo tree collects every session's
+    ruler — matching segment_export's recursive photo discovery — rather than requiring one
+    run per day-folder. Necessary for resolve_calibration_factor's same-batch date-fallback
+    (build_final_csv) to have full data to fall back across.
+    """
     ruler_dir = Path(ruler_dir)
     rows = [
         calibrate_ruler(p, known_cm_span, date, batch, nextcloud_root)
-        for p in sorted(ruler_dir.glob("ruler*"))
+        for p in sorted(p for p in ruler_dir.rglob("*") if p.is_file() and p.name.lower().startswith("ruler"))
     ]
     return write_calibration_csv(rows, out_csv)
 
