@@ -242,3 +242,94 @@ def test_derive_metadata_still_raises_when_nothing_at_all_is_available(tmp_path)
 
     with pytest.raises(ValueError):
         _derive_metadata(unparseable, nextcloud_root=None, date=None, batch=None, condition=None)
+
+
+# --- photo-level completion tracker: restart must not reopen already-done photos ----------
+
+
+def test_second_run_skips_already_processed_photo_without_ever_opening_click_loop(data_root):
+    """The real-world bug this guards against: a photo whose thread can never be known ahead
+    of time (composite/nested, thread always None from path-parsing) must still be skipped
+    entirely on a second run — not just its already-exported masks, the WINDOW itself must
+    never reopen. Before this fix, every restart reprocessed every such photo from scratch."""
+    root = data_root.parent / "input"
+    photo = root / "PreStretch" / "Batch 8 04-24-26" / "D1 04-25-26" / "IMG_0001.JPG"
+    _write_photo(photo)
+
+    masks_dir = data_root / "masks"
+    qc_dir = data_root / "qc"
+
+    # First run: label the one thread on this photo, advance.
+    export_folder(
+        input_dir=root, masks_dir=masks_dir, qc_dir=qc_dir, predictor=None,
+        click_loop=_accepting_click_loop([]),
+        nextcloud_root=root, condition="PreStretch",
+        prompt_thread=lambda name, guess: "01",
+        prompt_more_threads=lambda name: False,
+    )
+
+    # Second run ("restart after a fix"): must skip the photo without ever calling click_loop.
+    manifest = export_folder(
+        input_dir=root, masks_dir=masks_dir, qc_dir=qc_dir, predictor=None,
+        click_loop=_raising_click_loop,
+        nextcloud_root=root, condition="PreStretch",
+    )
+
+    assert manifest["outputs"][0]["action"] == "skipped"
+
+
+def test_force_reprocesses_a_previously_completed_photo(data_root):
+    root = data_root.parent / "input"
+    photo = root / "PreStretch" / "Batch 8 04-24-26" / "D1 04-25-26" / "IMG_0001.JPG"
+    _write_photo(photo)
+
+    masks_dir = data_root / "masks"
+    qc_dir = data_root / "qc"
+
+    export_folder(
+        input_dir=root, masks_dir=masks_dir, qc_dir=qc_dir, predictor=None,
+        click_loop=_accepting_click_loop([]),
+        nextcloud_root=root, condition="PreStretch",
+        prompt_thread=lambda name, guess: "01",
+        prompt_more_threads=lambda name: False,
+    )
+
+    seen: list = []
+    manifest = export_folder(
+        input_dir=root, masks_dir=masks_dir, qc_dir=qc_dir, predictor=None,
+        click_loop=_accepting_click_loop(seen),
+        nextcloud_root=root, condition="PreStretch", force=True,
+        prompt_thread=lambda name, guess: "01",
+        prompt_more_threads=lambda name: False,
+    )
+
+    assert len(seen) == 1  # --force reopened the photo despite it being previously completed
+    assert manifest["outputs"][0]["action"] == "written"
+
+
+def test_skipping_a_photo_with_n_also_marks_it_processed(data_root):
+    """Pressing 'n' (no thread accepted at all) still counts as a concluded session for that
+    photo — it must not reopen every future run either."""
+    root = data_root.parent / "input"
+    photo = root / "PreStretch" / "Batch 8 04-24-26" / "D1 04-25-26" / "IMG_0001.JPG"
+    _write_photo(photo)
+
+    masks_dir = data_root / "masks"
+    qc_dir = data_root / "qc"
+
+    def _skip_everything_click_loop(predictor, image_rgb, on_accept, photo_path=None):
+        pass  # simulates pressing 'n' — window closes without ever calling on_accept
+
+    export_folder(
+        input_dir=root, masks_dir=masks_dir, qc_dir=qc_dir, predictor=None,
+        click_loop=_skip_everything_click_loop,
+        nextcloud_root=root, condition="PreStretch",
+    )
+
+    manifest = export_folder(
+        input_dir=root, masks_dir=masks_dir, qc_dir=qc_dir, predictor=None,
+        click_loop=_raising_click_loop,
+        nextcloud_root=root, condition="PreStretch",
+    )
+
+    assert manifest["outputs"][0]["action"] == "skipped"

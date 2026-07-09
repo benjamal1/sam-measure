@@ -30,6 +30,41 @@ from segment.sam2_session import load_predictor
 
 _VALID_THREAD_RE = re.compile(r"^[^_/\\\s]+$")
 _EXPLICIT_DATE_RE = re.compile(r"^(?P<mm>\d{2})-(?P<dd>\d{2})-(?P<yy>\d{2})$")
+_PROCESSED_PHOTOS_FILENAME = "processed_photos.json"
+
+
+def _load_processed_photos(data_root: Path) -> set[str]:
+    """Photos whose click session has already run to completion (all threads labeled, or
+    explicitly skipped with 'n') in a PRIOR run — read once at the start of a run so a
+    restart doesn't reopen every photo's window from scratch.
+
+    Per-mask idempotency (mask_out.exists() checks elsewhere) only skips re-EXPORTING a mask
+    you type the exact same thread name for again — it does nothing to stop the window from
+    reopening in the first place for a photo whose thread can't be known ahead of time (true
+    for nearly all real photos here, since thread is always user-typed). This is the actual
+    fix for "I have to reprocess every photo again after a restart."
+    """
+    import json
+
+    path = Path(data_root) / _PROCESSED_PHOTOS_FILENAME
+    if not path.exists():
+        return set()
+    try:
+        return set(json.loads(path.read_text()))
+    except (json.JSONDecodeError, OSError):
+        return set()  # a corrupt/unreadable tracking file must never crash the run
+
+
+def _mark_photo_processed(data_root: Path, processed: set[str], photo_path: Path) -> set[str]:
+    """Add photo_path to the processed set and persist immediately (not just at run-end) —
+    so a Ctrl+C right after finishing a photo still counts it as done next time."""
+    import json
+
+    new_processed = processed | {str(photo_path)}
+    path = Path(data_root) / _PROCESSED_PHOTOS_FILENAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(sorted(new_processed), indent=2))
+    return new_processed
 
 
 def _derive_metadata(
@@ -181,8 +216,17 @@ def export_folder(
         photos = _discover_photos(input_dir)
 
     manifest = new_manifest("segment_export", datetime.now(timezone.utc).isoformat())
+    processed = _load_processed_photos(masks_dir.parent) if not force else set()
 
     for photo_path in photos:
+        if not force and str(photo_path) in processed:
+            print(f"skipping already-processed photo {photo_path.name} (all masks previously labeled)")
+            manifest = add_output(
+                manifest, stem=f"photo:{photo_path.name}", action="skipped",
+                mask_path=str(photo_path), qc_path="",
+            )
+            continue
+
         guess = _derive_metadata(photo_path, nextcloud_root, date, condition, batch)
 
         # Skip-check pre-pass: only possible without prompting when BOTH condition and thread
@@ -231,6 +275,10 @@ def export_folder(
             return not prompt_more_threads(photo_path.name)
 
         click_loop(predictor, image_rgb, on_accept, photo_path=photo_path)
+        # The photo's window has now closed — either every thread on it was labeled+advanced,
+        # or the user pressed 'n' to skip it outright. Either way there's nothing left to ask
+        # about it, so mark it done and never reopen its window again (until --force).
+        processed = _mark_photo_processed(masks_dir.parent, processed, photo_path)
 
     return manifest
 

@@ -54,8 +54,11 @@ Masks land in `data/masks/`, a red-tinted overlay QC image lands in `data/qc/` f
 accepted mask — check `data/qc/` if a measurement looks off later, the overlay shows
 exactly what was measured.
 
-**Idempotent:** re-running over the same folder skips anything already exported. Force a
-re-export with `--force`.
+**Resuming after a restart:** a photo whose window you've already closed (either you
+labeled all its threads and advanced, or pressed `n` to skip it) is never reopened again
+on a later run — it's tracked in `data/processed_photos.json`. Safe to Ctrl+C mid-session
+any time; rerun the same command and it picks up exactly where you left off. `--force`
+ignores this and reprocesses everything from scratch.
 
 **If a folder's date/batch truly can't be inferred** from its path, pass them explicitly:
 `--date MM-DD-YY --batch N`. (`--condition`/`--thread` can also be forced this way, but
