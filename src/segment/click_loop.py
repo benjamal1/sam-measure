@@ -33,6 +33,43 @@ from segment.mask_edit import erase_box
 from segment.sam2_session import predict_mask as _default_predict_mask
 
 
+def _capture_frontmost_app_name() -> str | None:
+    """macOS only: name of whatever app was focused when the click window opened (almost
+    always the user's terminal) — captured so it can be reactivated later without hardcoding
+    a specific terminal app (Terminal.app, iTerm2, etc. all work the same way)."""
+    import sys
+
+    if sys.platform != "darwin":
+        return None
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ["osascript", "-e",
+             'tell application "System Events" to name of first application process whose frontmost is true'],
+            capture_output=True, text=True, timeout=2,
+        )
+        return result.stdout.strip() or None
+    except Exception:
+        return None  # best-effort UX only — never let this block/crash the session
+
+
+def _refocus_app(app_name: str | None) -> None:
+    """Reactivate app_name (macOS only) — used right before a terminal input() prompt fires
+    (condition/thread/more-threads), so the user doesn't have to click out of the plot window
+    manually to type. Best-effort: any failure is silently ignored."""
+    import sys
+
+    if app_name is None or sys.platform != "darwin":
+        return
+    import subprocess
+
+    try:
+        subprocess.run(["osascript", "-e", f'tell application "{app_name}" to activate'], timeout=2)
+    except Exception:
+        pass
+
+
 @dataclass
 class ClickLoopState:
     predictor: object
@@ -162,6 +199,11 @@ def run_click_loop(
     # effect before the next plt.subplots() — this guarantees a clean slate regardless.
     plt.close("all")
 
+    # Capture whatever app is focused right now (almost always the terminal that launched
+    # this run) BEFORE the plot window steals focus, so 'a' can hand focus back to it —
+    # without this, the user has to manually click the terminal to type condition/thread.
+    terminal_app = _capture_frontmost_app_name()
+
     state = ClickLoopState(predictor=predictor, image_rgb=image_rgb, on_accept=on_accept)
 
     fig, ax = plt.subplots()
@@ -217,6 +259,11 @@ def run_click_loop(
         _redraw()
 
     def _on_key(event):
+        if event.key == "a" and state.current_mask is not None and state.current_mask.any():
+            # Accept is about to (synchronously) call on_accept, which prompts for
+            # condition/thread via terminal input() — hand OS focus back to the terminal
+            # first so the user can just start typing.
+            _refocus_app(terminal_app)
         handle_key(state, event)
         if state.done:
             plt.close(fig)
