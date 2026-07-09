@@ -182,9 +182,16 @@ def _discover_photos(input_dir: Path) -> list[Path]:
     """Recursively discover thread photos under input_dir (any depth), excluding ruler_*.
 
     Uses a single case-insensitive suffix match (not separate *.JPG/*.jpg globs) so photos
-    are never double-counted on case-insensitive filesystems (e.g. macOS)."""
+    are never double-counted on case-insensitive filesystems (e.g. macOS).
+
+    Each result is resolved to an absolute, canonical path (Path.resolve()) — otherwise the
+    SAME physical photo gets a DIFFERENT string key in data/processed_photos.json depending
+    on whether --input-dir was passed relative or absolute across different invocations,
+    causing an already-processed photo to silently look new (or double-recorded) on a later
+    run with a differently-typed --input-dir.
+    """
     return sorted(
-        p for p in input_dir.rglob("*")
+        p.resolve() for p in input_dir.rglob("*")
         if p.is_file() and p.suffix.lower() == ".jpg" and not p.name.lower().startswith("ruler")
     )
 

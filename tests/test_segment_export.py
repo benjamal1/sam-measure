@@ -403,3 +403,23 @@ def test_quit_before_any_accept_does_not_mark_photo_processed(data_root):
     )
 
     assert len(seen) == 1  # photo was reopened — the bug this test guards against
+
+
+# --- discovered photos are resolved to a canonical absolute path (relative/absolute mismatch fix) --
+
+
+def test_discover_photos_resolves_relative_input_dir_to_absolute(tmp_path, monkeypatch):
+    """Real bug: the same physical photo got a DIFFERENT string key in processed_photos.json
+    depending on whether --input-dir was passed relative or absolute across runs, making an
+    already-done photo look unprocessed (or double-recorded) on a later differently-typed run."""
+    from segment.segment_export import _discover_photos
+
+    root = tmp_path / "photos"
+    _write_photo(root / "IMG_0001.JPG")
+
+    monkeypatch.chdir(tmp_path)
+    relative_result = _discover_photos(Path("photos"))
+    absolute_result = _discover_photos(root)
+
+    assert relative_result == absolute_result
+    assert relative_result[0].is_absolute()
