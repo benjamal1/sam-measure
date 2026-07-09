@@ -20,7 +20,7 @@ photo without accepting, same as before, and also sets `state.done`.
 The callback logic (`handle_click`/`handle_key`) is separated from the matplotlib event
 loop plumbing (`run_click_loop`) specifically so it's testable under the Agg backend
 without a real display — this module cannot be interactively verified in an unattended
-headless session; its UX is validated by hand on the Mac (see MORNING-TEST.md).
+headless session; its UX is validated by hand on the Mac (see RUNBOOK.md).
 """
 from __future__ import annotations
 
