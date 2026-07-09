@@ -261,6 +261,14 @@ def run_click_loop(
         except Exception:
             pass
 
+    # WebAgg defaults to auto-opening a browser tab on ITS OWN machine when the server
+    # starts (matplotlib.rcParams['webagg.open_in_browser']) — over SSH that's the remote
+    # machine's own (probably headless, or GUI-but-irrelevant) session, not the browser
+    # you're actually viewing from, so every restart pops a useless tab there instead.
+    # You always open the URL yourself in your own browser via the SSH port-forward.
+    if matplotlib.get_backend().lower() == "webagg":
+        matplotlib.rcParams["webagg.open_in_browser"] = False
+
     import matplotlib.patches as mpatches
     import matplotlib.pyplot as plt
     from matplotlib.widgets import TextBox
