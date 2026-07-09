@@ -54,10 +54,21 @@ def _capture_frontmost_app_name() -> str | None:
         return None  # best-effort UX only — never let this block/crash the session
 
 
+_VSCODE_APP_NAMES = {"Code", "Code - Insiders", "Visual Studio Code", "Cursor", "VSCodium"}
+
+
 def _refocus_app(app_name: str | None) -> None:
     """Reactivate app_name (macOS only) — used right before a terminal input() prompt fires
     (condition/thread/more-threads), so the user doesn't have to click out of the plot window
-    manually to type. Best-effort: any failure is silently ignored."""
+    manually to type. Best-effort: any failure is silently ignored.
+
+    A dedicated terminal app (kitty, Terminal.app, iTerm2) has nothing else to focus once
+    activated. An editor with an INTEGRATED terminal (VS Code and forks) is different —
+    `activate` only brings the whole app forward, it does not guarantee the terminal PANEL
+    (vs. the editor pane) has keyboard focus, so typed input can land in the wrong place.
+    For those, also send the app's own terminal-focus shortcut (Cmd+` , VS Code's default)
+    right after activating.
+    """
     import sys
 
     if app_name is None or sys.platform != "darwin":
@@ -66,6 +77,11 @@ def _refocus_app(app_name: str | None) -> None:
 
     try:
         subprocess.run(["osascript", "-e", f'tell application "{app_name}" to activate'], timeout=2)
+        if app_name in _VSCODE_APP_NAMES:
+            subprocess.run(
+                ["osascript", "-e", 'tell application "System Events" to keystroke "`" using {command down}'],
+                timeout=2,
+            )
     except Exception:
         pass
 
