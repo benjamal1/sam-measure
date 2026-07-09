@@ -250,7 +250,10 @@ def run_click_loop(
             pass  # some backends (e.g. Agg, used in headless tests) have no window manager
 
     def _title() -> str:
-        base = "Left=positive, Right=negative, 'a'=accept, 'u'=undo, 'n'=next photo, 'q'=quit (not Ctrl+C)"
+        base = (
+            "Left=positive, Right=negative, scroll=zoom, 'a'=accept, 'u'=undo, "
+            "'n'=next photo, 'q'=quit (not Ctrl+C)"
+        )
         return f"[ERASE MODE — drag a box] {base}" if state.erase_mode else f"'e'=erase mode (drag a box) | {base}"
 
     # Rubber-band erase-box preview: a single reusable Rectangle patch, recreated on every full
@@ -259,7 +262,16 @@ def run_click_loop(
     # the actual laggy part for a large macro photo, not SAM2 (SAM2 isn't invoked by erase at all).
     drag_rect = {"patch": None}
 
+    # Zoom state: ax.clear() (in _redraw) resets axis limits to the full image extent, so the
+    # current zoom window is captured before each clear and reapplied after — otherwise every
+    # click/accept/key would silently reset any zoom the user scrolled in to. None on the very
+    # first draw (nothing to preserve yet).
+    zoom_limits = {"xlim": None, "ylim": None}
+
     def _redraw():
+        if zoom_limits["xlim"] is not None:
+            zoom_limits["xlim"] = ax.get_xlim()
+            zoom_limits["ylim"] = ax.get_ylim()
         ax.clear()
         ax.imshow(image_rgb)
         if state.current_mask is not None:
@@ -269,7 +281,33 @@ def run_click_loop(
         rect = mpatches.Rectangle((0, 0), 0, 0, edgecolor="yellow", facecolor="none", linewidth=1.5, visible=False)
         ax.add_patch(rect)
         drag_rect["patch"] = rect
+        if zoom_limits["xlim"] is not None:
+            ax.set_xlim(zoom_limits["xlim"])
+            ax.set_ylim(zoom_limits["ylim"])
+        else:
+            zoom_limits["xlim"] = ax.get_xlim()
+            zoom_limits["ylim"] = ax.get_ylim()
         ax.set_title(_title())
+        fig.canvas.draw_idle()
+
+    def _on_scroll(event):
+        """Scroll wheel = zoom in/out centered on the cursor. Doesn't conflict with click
+        semantics (unlike matplotlib's default toolbar zoom-rectangle, which would intercept
+        left-clicks meant for SAM2 points) and doesn't need a full image re-render — it only
+        changes the visible axis window into the already-drawn image/overlay."""
+        if event.xdata is None or event.ydata is None:
+            return
+        scale = 1 / 1.3 if event.button == "up" else 1.3
+        xlim, ylim = ax.get_xlim(), ax.get_ylim()
+        x, y = event.xdata, event.ydata
+        new_w = (xlim[1] - xlim[0]) * scale
+        new_h = (ylim[1] - ylim[0]) * scale
+        relx = (xlim[1] - x) / (xlim[1] - xlim[0])
+        rely = (ylim[1] - y) / (ylim[1] - ylim[0])
+        ax.set_xlim([x - new_w * (1 - relx), x + new_w * relx])
+        ax.set_ylim([y - new_h * (1 - rely), y + new_h * rely])
+        zoom_limits["xlim"] = ax.get_xlim()
+        zoom_limits["ylim"] = ax.get_ylim()
         fig.canvas.draw_idle()
 
     def _on_press(event):
@@ -311,6 +349,7 @@ def run_click_loop(
     fig.canvas.mpl_connect("motion_notify_event", _on_motion)
     fig.canvas.mpl_connect("button_release_event", _on_release)
     fig.canvas.mpl_connect("key_press_event", _on_key)
+    fig.canvas.mpl_connect("scroll_event", _on_scroll)
     plt.show()
 
     return state

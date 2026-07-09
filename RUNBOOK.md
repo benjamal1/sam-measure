@@ -43,6 +43,7 @@ PYTHONPATH=src .venv/bin/python -m segment.segment_export \
 |---|---|
 | Positive point (mark thread) | Left click |
 | Negative point (mark "not thread") | Right click |
+| Zoom in/out | Scroll wheel, centered on cursor |
 | Accept current mask | `a` — then type condition + thread |
 | Erase mode (fix a bad region, e.g. a needle) | `e` to toggle, then **click-drag a box** over the region to remove, release to erase |
 | Undo last click or erase | `u` — never undoes an already-accepted/exported mask |
