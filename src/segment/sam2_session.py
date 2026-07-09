@@ -58,12 +58,21 @@ def predict_mask(
     labels: list[int],
     multimask_output: bool = False,
 ) -> np.ndarray:
-    """Run one image through set_image + predict; return an HxW boolean mask.
+    """Run predict (and set_image, ONCE per distinct image) and return an HxW boolean mask.
 
     labels: 1 = positive point (include), 0 = negative point (exclude).
+
+    Performance: SAM2's image ENCODER (set_image) is the expensive part of a click — a full
+    ViT-Hiera forward pass. The point-prompt DECODER (predict) is cheap. Recomputing the
+    encoder on every click (every point add during the same photo) was the dominant cost of
+    interactive lag; it is now skipped when `image` is the same array object as last time
+    (identity check via id() — safe here since a photo's click loop holds one fixed array for
+    its whole session and only gets a fresh array object when a new photo is opened).
     """
     image_rgb = image.astype(np.uint8)
-    predictor.set_image(image_rgb)
+    if getattr(predictor, "_last_encoded_image_id", None) != id(image):
+        predictor.set_image(image_rgb)
+        predictor._last_encoded_image_id = id(image)
 
     point_coords = np.asarray(points, dtype=np.float32)
     point_labels = np.asarray(labels, dtype=np.int32)

@@ -20,7 +20,7 @@ def _write_photo(path: Path) -> None:
 
 
 def _accepting_click_loop(seen: list) -> callable:
-    def _loop(predictor, image_rgb, on_accept):
+    def _loop(predictor, image_rgb, on_accept, photo_path=None):
         seen.append(image_rgb.shape)
         mask = np.zeros(image_rgb.shape[:2], dtype=bool)
         mask[2:5, 2:5] = True
@@ -29,7 +29,7 @@ def _accepting_click_loop(seen: list) -> callable:
     return _loop
 
 
-def _raising_click_loop(predictor, image_rgb, on_accept):
+def _raising_click_loop(predictor, image_rgb, on_accept, photo_path=None):
     raise AssertionError("click_loop must not be invoked in this test")
 
 
@@ -159,7 +159,7 @@ def test_on_accept_supports_multiple_masks_per_photo_via_click_loop_return_contr
         # Reclick after the first accept, advance after the second.
         return accept_count["n"] == 0
 
-    def _two_accept_click_loop(predictor, image_rgb, on_accept):
+    def _two_accept_click_loop(predictor, image_rgb, on_accept, photo_path=None):
         for i in range(2):
             accept_count["n"] = i
             mask = np.zeros(image_rgb.shape[:2], dtype=bool)

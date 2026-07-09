@@ -230,7 +230,7 @@ def export_folder(
                 return True  # thread already fully known — nothing more to label, advance
             return not prompt_more_threads(photo_path.name)
 
-        click_loop(predictor, image_rgb, on_accept)
+        click_loop(predictor, image_rgb, on_accept, photo_path=photo_path)
 
     return manifest
 

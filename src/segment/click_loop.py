@@ -124,7 +124,9 @@ def handle_key(state: ClickLoopState, event) -> None:
         state.done = True
 
 
-def run_click_loop(predictor, image_rgb: np.ndarray, on_accept: Callable[[np.ndarray], object]) -> ClickLoopState:
+def run_click_loop(
+    predictor, image_rgb: np.ndarray, on_accept: Callable[[np.ndarray], object], photo_path=None
+) -> ClickLoopState:
     """Launch the interactive matplotlib window for ONE photo, supporting multiple
     labeled masks before the window closes. Guarded so import/construction works under
     Agg (no display) — only plt.show() requires a real display, and is only reached when
@@ -134,17 +136,31 @@ def run_click_loop(predictor, image_rgb: np.ndarray, on_accept: Callable[[np.nda
     stays open and click-state resets after each accept, ready for the next thread's click,
     until `on_accept` returns truthy (advance) or the user presses 'n' (skip) — either sets
     `state.done`, which closes the window and returns control to the caller.
+
+    `photo_path` (optional): sets the OS window title to the full file path — matplotlib's
+    default "Figure 1" title otherwise gives no clue which photo is open.
     """
+    import matplotlib.patches as mpatches
     import matplotlib.pyplot as plt
 
     state = ClickLoopState(predictor=predictor, image_rgb=image_rgb, on_accept=on_accept)
 
     fig, ax = plt.subplots()
-    ax.imshow(image_rgb)
-    ax.set_title(
-        "Left=positive, Right=negative, 'a'=accept (label + reclick-or-advance), "
-        "'e'=erase mode (drag a box), 'n'=next photo"
-    )
+    if photo_path is not None:
+        try:
+            fig.canvas.manager.set_window_title(str(photo_path))
+        except AttributeError:
+            pass  # some backends (e.g. Agg, used in headless tests) have no window manager
+
+    def _title() -> str:
+        base = "Left=positive, Right=negative, 'a'=accept (label + reclick-or-advance), 'n'=next photo"
+        return f"[ERASE MODE — drag a box] {base}" if state.erase_mode else f"'e'=erase mode (drag a box) | {base}"
+
+    # Rubber-band erase-box preview: a single reusable Rectangle patch, recreated on every full
+    # _redraw() (ax.clear() wipes patches) but updated CHEAPLY on plain mouse-move without a
+    # full image re-render — re-imshow()-ing the whole photo on every motion event would be
+    # the actual laggy part for a large macro photo, not SAM2 (SAM2 isn't invoked by erase at all).
+    drag_rect = {"patch": None}
 
     def _redraw():
         ax.clear()
@@ -153,11 +169,29 @@ def run_click_loop(predictor, image_rgb: np.ndarray, on_accept: Callable[[np.nda
             overlay = np.zeros((*state.current_mask.shape, 4))
             overlay[state.current_mask] = [1, 0, 0, 0.4]
             ax.imshow(overlay)
+        rect = mpatches.Rectangle((0, 0), 0, 0, edgecolor="yellow", facecolor="none", linewidth=1.5, visible=False)
+        ax.add_patch(rect)
+        drag_rect["patch"] = rect
+        ax.set_title(_title())
         fig.canvas.draw_idle()
 
     def _on_press(event):
         handle_click(state, event)
         _redraw()
+
+    def _on_motion(event):
+        if not (state.erase_mode and state.erase_drag_start is not None):
+            return
+        if event.xdata is None or event.ydata is None:
+            return
+        rect = drag_rect["patch"]
+        if rect is None:
+            return
+        x0, y0 = state.erase_drag_start
+        x1, y1 = event.xdata, event.ydata
+        rect.set_bounds(min(x0, x1), min(y0, y1), abs(x1 - x0), abs(y1 - y0))
+        rect.set_visible(True)
+        fig.canvas.draw_idle()  # cheap: just the patch, no full image re-render
 
     def _on_release(event):
         handle_release(state, event)
@@ -170,7 +204,9 @@ def run_click_loop(predictor, image_rgb: np.ndarray, on_accept: Callable[[np.nda
             return
         _redraw()
 
+    _redraw()
     fig.canvas.mpl_connect("button_press_event", _on_press)
+    fig.canvas.mpl_connect("motion_notify_event", _on_motion)
     fig.canvas.mpl_connect("button_release_event", _on_release)
     fig.canvas.mpl_connect("key_press_event", _on_key)
     plt.show()
