@@ -120,3 +120,31 @@ def test_measure_folder_skips_empty_mask_but_measures_the_rest(tmp_path, capsys)
     assert len(df) == 1  # the bad mask was skipped, not fatal to the run
     assert df.iloc[0]["thread"] == "01"
     assert "skipping unmeasurable mask" in capsys.readouterr().out
+
+
+# --- measure_mask keeps only the largest connected component -------------------------------
+
+
+def test_measure_mask_ignores_a_second_sizable_stray_blob():
+    """A second disconnected region well above remove_small_objects' 19px threshold (e.g. a
+    mis-segmented fragment elsewhere in frame) must not be summed into area_px or interleaved
+    into the skeleton/diameter calc alongside the real thread."""
+    mask = np.zeros((120, 140), dtype=bool)
+    mask[50:70, 20:120] = True   # the real thread: 20x100 = 2000px
+    mask[10:20, 10:30] = True    # a stray blob: 10x20 = 200px — well above the 19px speck cutoff
+
+    result = measure_mask(mask)
+
+    # If the stray blob were included, area_px would be ~2200 and the skeleton would span
+    # two disconnected pieces, corrupting avg_diameter_px. Only the larger region should count.
+    assert result["area_px"] < 2100
+    assert result["area_px"] > 1900
+
+
+def test_measure_mask_single_component_unaffected_by_stray_blob_guard():
+    mask = np.zeros((120, 140), dtype=bool)
+    mask[50:70, 20:120] = True
+
+    result = measure_mask(mask)
+
+    assert result["area_px"] == 2000

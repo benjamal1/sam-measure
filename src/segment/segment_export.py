@@ -132,11 +132,36 @@ def _prompt_for_condition(photo_name: str, guess: str | None = None) -> str:
     return _prompt_safe_identifier("Condition", photo_name, guess)
 
 
+def _read_single_key() -> str:
+    """Read exactly one keypress, no Enter required. Falls back to input() when stdin isn't
+    a real interactive terminal (tests, piped input) — termios/tty raw-mode reads need a tty.
+    """
+    import sys
+
+    if not sys.stdin.isatty():
+        return input().strip()
+
+    import termios
+    import tty
+
+    fd = sys.stdin.fileno()
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)  # disables line-buffering AND echo — must echo manually below
+        ch = sys.stdin.read(1)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    return ch
+
+
 def _prompt_more_threads(photo_name: str) -> bool:
     """After an accept: ask whether to label another thread on this SAME photo (Task 2's
-    multi-mask loop) — True = reclick same photo, False (default, Enter) = advance."""
-    raw = input(f"Label another thread on {photo_name}? [y/N]: ").strip().lower()
-    return raw in ("y", "yes")
+    multi-mask loop) — True = reclick same photo, False (default) = advance. Single
+    keypress, no Enter needed."""
+    print(f"Label another thread on {photo_name}? [y/N]: ", end="", flush=True)
+    ch = _read_single_key().strip().lower()
+    print(ch)  # echo it back since raw mode suppresses the terminal's own echo
+    return ch == "y"
 
 
 def _resolve_field(explicit: str | None, guessed: str | None, prompt_fn, photo_name: str) -> str:

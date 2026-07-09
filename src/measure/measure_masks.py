@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 from scipy.ndimage import distance_transform_edt
+from scipy.ndimage import label as ndi_label
 from skimage.morphology import closing, disk, remove_small_objects, skeletonize
 
 from segment.naming import stem_to_fields
@@ -41,6 +42,17 @@ def measure_mask(mask: np.ndarray, endpoint_trim_px: int = 5) -> dict:
     cleaned = remove_small_objects(cleaned, max_size=19)
     if not cleaned.any():
         raise ValueError("mask became empty after cleanup (likely noise-only input)")
+
+    # remove_small_objects only drops specks below max_size — a second SIZABLE stray blob
+    # (e.g. a mis-segmented fragment elsewhere in frame, more likely with a smaller/less
+    # accurate SAM2 checkpoint) would otherwise be summed into area_px and interleaved into
+    # the skeleton/diameter calc alongside the real thread. Keep only the single largest
+    # connected component — the thread being measured is always the biggest accepted region.
+    labeled, num_components = ndi_label(cleaned)
+    if num_components > 1:
+        sizes = np.bincount(labeled.ravel())
+        sizes[0] = 0  # background label is never a candidate
+        cleaned = labeled == sizes.argmax()
 
     area_px = int(cleaned.sum())
 
