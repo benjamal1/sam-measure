@@ -157,16 +157,29 @@ def parse_lenient_path(photo_path: Path) -> PhotoMetadata:
     )
 
 
+_UNSAFE_STEM_CHARS_RE = re.compile(r"[_/\\\s]")
+
+
 def canonical_stem(meta: PhotoMetadata, thread: str) -> str:
     """Build a collision-resistant filename stem: no path separators, no spaces.
 
-    `thread` is often typed by a human at an interactive prompt (D-07) — reject any
-    value containing the "_" join delimiter, "/", or whitespace, since those corrupt
-    stem_to_fields' inverse parsing rather than merely producing an ugly filename.
+    `thread` and `condition`/`batch` (when present) may all be typed by a human — at an
+    interactive prompt (D-07) or via a CLI --condition/--thread/--batch override that bypasses
+    the prompt path entirely. ALL of them are validated here (not just thread), since any of
+    them containing the "_" join delimiter, "/", or whitespace corrupts stem_to_fields' inverse
+    parsing and silently misassigns fields rather than merely producing an ugly filename.
     """
-    if not thread or re.search(r"[_/\\\s]", thread):
+    if not thread or _UNSAFE_STEM_CHARS_RE.search(thread):
         raise ValueError(
             f"invalid thread identifier {thread!r}: must not contain '_', '/', or whitespace"
+        )
+    if meta.condition and _UNSAFE_STEM_CHARS_RE.search(meta.condition):
+        raise ValueError(
+            f"invalid condition {meta.condition!r}: must not contain '_', '/', or whitespace"
+        )
+    if meta.batch and _UNSAFE_STEM_CHARS_RE.search(meta.batch):
+        raise ValueError(
+            f"invalid batch {meta.batch!r}: must not contain '_', '/', or whitespace"
         )
     parts = [meta.date.isoformat()]
     if meta.batch:

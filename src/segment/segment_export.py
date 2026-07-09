@@ -25,20 +25,23 @@ from pathlib import Path
 from pipeline.manifest import add_output, new_manifest, write_manifest
 from segment.click_loop import run_click_loop
 from segment.export import export_mask
-from segment.naming import canonical_stem, parse_flat_path, parse_lenient_path, parse_photo_path
+from segment.naming import PhotoMetadata, canonical_stem, parse_flat_path, parse_lenient_path, parse_photo_path
 from segment.sam2_session import load_predictor
 
 _VALID_THREAD_RE = re.compile(r"^[^_/\\\s]+$")
+_EXPLICIT_DATE_RE = re.compile(r"^(?P<mm>\d{2})-(?P<dd>\d{2})-(?P<yy>\d{2})$")
 
 
-def _derive_metadata(photo_path: Path, nextcloud_root: Path | None, date: str | None, condition: str | None):
+def _derive_metadata(
+    photo_path: Path, nextcloud_root: Path | None, date: str | None, condition: str | None, batch: str | None = None
+) -> PhotoMetadata:
     """Best-effort path-parsed guess — advisory only (EXPT-01 revised), never authoritative.
 
-    Tries, in order: nextcloud_root-relative Batch/Condition/Day, legacy flat MM-DD-YY,
-    then a lenient any-ancestor Batch/Day scan (no Condition level required). Never raises —
-    falls back to an all-unknown guess (condition/thread=None, today-less date left to the
-    caller's --date override) only if every strategy fails, so a crashed run never happens
-    just because a photo's folder doesn't match any known convention.
+    Tries, in order: nextcloud_root-relative Batch/Condition/Day, legacy flat MM-DD-YY, a
+    lenient any-ancestor Batch/Condition/Day scan, and finally the CLI's own --date (MM-DD-YY)
+    + --batch as a last-resort explicit override when every path-parsing strategy fails — this
+    is what makes the error message's own suggested fix ("pass --date explicitly") actually do
+    something, instead of raising again on retry. Only raises when even that is unavailable.
     """
     if nextcloud_root:
         try:
@@ -53,10 +56,20 @@ def _derive_metadata(photo_path: Path, nextcloud_root: Path | None, date: str | 
         return parse_lenient_path(photo_path)
     except ValueError:
         pass
+    if date is not None:
+        m = _EXPLICIT_DATE_RE.match(date)
+        if not m:
+            raise ValueError(f"--date must be in MM-DD-YY format, got: {date!r}")
+        from segment.naming import _to_date  # local import: internal helper, not part of the public API
+        return PhotoMetadata(
+            batch=batch or "", batch_start_date=None, condition=condition, day="",
+            date=_to_date(m.group("mm"), m.group("dd"), m.group("yy")),
+            thread=None, source_path=photo_path,
+        )
     raise ValueError(
         f"could not derive any date/batch metadata from path: {photo_path} — "
         "pass --nextcloud-root, or ensure a 'D# MM-DD-YY' day folder is somewhere in its path, "
-        "or pass --date explicitly."
+        "or pass --date MM-DD-YY (and optionally --batch) explicitly."
     )
 
 
@@ -170,7 +183,7 @@ def export_folder(
     manifest = new_manifest("segment_export", datetime.now(timezone.utc).isoformat())
 
     for photo_path in photos:
-        guess = _derive_metadata(photo_path, nextcloud_root, date, condition)
+        guess = _derive_metadata(photo_path, nextcloud_root, date, condition, batch)
 
         # Skip-check pre-pass: only possible without prompting when BOTH condition and thread
         # are already known (explicit override or flat-legacy filename-derived guess) — neither

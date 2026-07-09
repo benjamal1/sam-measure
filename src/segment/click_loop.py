@@ -107,6 +107,9 @@ def handle_release(state: ClickLoopState, event) -> None:
 def handle_key(state: ClickLoopState, event) -> None:
     if event.key == "a":
         if state.current_mask is not None and state.on_accept is not None:
+            if not state.current_mask.any():
+                print("mask is empty (fully erased) — nothing to accept, keep clicking or press 'n' to skip")
+                return
             advance = state.on_accept(state.current_mask)
             # Reset click-state after EVERY accept (Pitfall-2 guard) — a second thread's
             # click on this same photo must never see the first thread's points/mask.

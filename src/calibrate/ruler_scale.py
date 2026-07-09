@@ -18,7 +18,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from segment.naming import parse_flat_path, parse_photo_path
+from segment.naming import parse_flat_path, parse_lenient_path, parse_photo_path
 
 _CALIBRATION_COLUMNS = ["date", "batch", "px_per_cm", "ruler_source_path"]
 
@@ -83,10 +83,22 @@ def calibrate_ruler(
     import matplotlib.pyplot as plt
 
     if date is None or batch is None:
-        try:
-            meta = parse_photo_path(ruler_path, nextcloud_root) if nextcloud_root else parse_flat_path(ruler_path)
-        except ValueError:
-            meta = parse_flat_path(ruler_path)
+        meta = None
+        if nextcloud_root:
+            try:
+                meta = parse_photo_path(ruler_path, nextcloud_root)
+            except ValueError:
+                pass
+        if meta is None:
+            try:
+                meta = parse_flat_path(ruler_path)
+            except ValueError:
+                pass
+        if meta is None:
+            # Same reorganized-tree layout as segment_export's thread photos (Condition/Batch
+            # level dropped or reordered) — same lenient fallback, same reason (naming.py's
+            # parse_lenient_path docstring).
+            meta = parse_lenient_path(ruler_path)
         date = date or meta.date.isoformat()
         batch = batch if batch is not None else meta.batch
 
@@ -109,6 +121,16 @@ def calibrate_ruler(
     }
 
 
+def _discover_ruler_photos(ruler_dir: Path) -> list[Path]:
+    """Recursively find ruler_*.jpg/JPG under ruler_dir (any depth), excluding non-image files
+    that merely start with "ruler" (e.g. ruler_notes.txt) — pure/testable, no interactive I/O.
+    """
+    return sorted(
+        p for p in Path(ruler_dir).rglob("*")
+        if p.is_file() and p.name.lower().startswith("ruler") and p.suffix.lower() in (".jpg", ".jpeg")
+    )
+
+
 def calibrate_folder(
     ruler_dir: Path,
     out_csv: Path,
@@ -124,11 +146,15 @@ def calibrate_folder(
     run per day-folder. Necessary for resolve_calibration_factor's same-batch date-fallback
     (build_final_csv) to have full data to fall back across.
     """
-    ruler_dir = Path(ruler_dir)
-    rows = [
-        calibrate_ruler(p, known_cm_span, date, batch, nextcloud_root)
-        for p in sorted(p for p in ruler_dir.rglob("*") if p.is_file() and p.name.lower().startswith("ruler"))
-    ]
+    ruler_photos = _discover_ruler_photos(ruler_dir)
+    rows = []
+    for p in ruler_photos:
+        try:
+            rows.append(calibrate_ruler(p, known_cm_span, date, batch, nextcloud_root))
+        except ValueError as exc:
+            # One bad/unparseable ruler file must not abort calibration for every other
+            # already-good session in the same run — isolate and continue.
+            print(f"skipping unusable ruler {p}: {exc}")
     return write_calibration_csv(rows, out_csv)
 
 

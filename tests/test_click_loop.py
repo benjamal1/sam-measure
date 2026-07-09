@@ -273,3 +273,23 @@ def test_new_state_starts_not_done():
         predict_fn=_fake_predict_mask,
     )
     assert state.done is False
+
+
+# --- accept refuses an empty (fully-erased) mask -------------------------------------------
+
+
+def test_accept_on_fully_erased_empty_mask_is_a_noop_not_an_export():
+    """An all-False mask (accidentally erased entirely, no undo) must never be handed to
+    on_accept — exporting/measuring an empty mask crashes downstream (measure_masks)."""
+    calls = []
+    state = ClickLoopState(
+        predictor=None, image_rgb=np.zeros((100, 100, 3), dtype=np.uint8),
+        predict_fn=_fake_predict_mask, on_accept=lambda mask: calls.append(mask),
+    )
+    handle_click(state, _FakeEvent(button=1, xdata=30.0, ydata=40.0))
+    state.current_mask = np.zeros_like(state.current_mask)  # simulate a full erase
+
+    handle_key(state, _FakeEvent(key="a"))
+
+    assert calls == []
+    assert state.done is False

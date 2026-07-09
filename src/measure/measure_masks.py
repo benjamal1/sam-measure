@@ -86,10 +86,18 @@ def measure_folder(masks_dir: Path, out_csv: Path) -> pd.DataFrame:
     masks_dir = Path(masks_dir)
     out_csv = Path(out_csv)
     rows = []
+    errors = []
 
     for mask_path in sorted(masks_dir.glob("*.png")):
-        mask = np.array(Image.open(mask_path).convert("L")) > 127
-        measured = measure_mask(mask)
+        try:
+            mask = np.array(Image.open(mask_path).convert("L")) > 127
+            measured = measure_mask(mask)
+        except ValueError as exc:
+            # One bad mask (e.g. fully erased/degenerate) must not lose every other
+            # already-good mask's measurements in the same batch — isolate and continue.
+            print(f"skipping unmeasurable mask {mask_path.name}: {exc}")
+            errors.append((str(mask_path), str(exc)))
+            continue
         fields = stem_to_fields(mask_path.stem)
         rows.append({
             "source_path": str(mask_path),
@@ -102,6 +110,9 @@ def measure_folder(masks_dir: Path, out_csv: Path) -> pd.DataFrame:
             "stdev_px": measured["stdev_px"],
             "mad_px": measured["mad_px"],
         })
+
+    if errors:
+        print(f"measured {len(rows)} mask(s), skipped {len(errors)} unmeasurable mask(s) — see messages above")
 
     df = pd.DataFrame(rows, columns=_CSV_COLUMNS)
     out_csv.parent.mkdir(parents=True, exist_ok=True)

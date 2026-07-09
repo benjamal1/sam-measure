@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from segment.segment_export import export_folder
+from segment.segment_export import _derive_metadata, export_folder
 
 
 def _write_photo(path: Path) -> None:
@@ -206,3 +206,39 @@ def test_export_folder_skip_already_exported_still_works_over_recursive_tree(dat
     )
 
     assert manifest["outputs"][0]["action"] == "skipped"
+
+
+# --- _derive_metadata: --date/--batch as a real last-resort fallback ----------------------
+
+
+def test_derive_metadata_falls_back_to_explicit_date_and_batch_when_unparseable(tmp_path):
+    """A photo whose path matches none of the parsers must still resolve when --date/--batch
+    are given explicitly — this is exactly what the function's own error message tells the
+    user to do; it must not raise again on retry (the bug this test guards against)."""
+    unparseable = tmp_path / "completely_flat_no_date_folder" / "photo.JPG"
+    unparseable.parent.mkdir(parents=True)
+    unparseable.touch()
+
+    meta = _derive_metadata(unparseable, nextcloud_root=None, date="05-11-26", batch="8", condition="PostStretch")
+
+    assert meta.date.isoformat() == "2026-05-11"
+    assert meta.batch == "8"
+    assert meta.condition == "PostStretch"
+
+
+def test_derive_metadata_raises_clearly_on_malformed_explicit_date(tmp_path):
+    unparseable = tmp_path / "flat_no_date" / "photo.JPG"
+    unparseable.parent.mkdir(parents=True)
+    unparseable.touch()
+
+    with pytest.raises(ValueError, match="MM-DD-YY"):
+        _derive_metadata(unparseable, nextcloud_root=None, date="not-a-date", batch=None, condition=None)
+
+
+def test_derive_metadata_still_raises_when_nothing_at_all_is_available(tmp_path):
+    unparseable = tmp_path / "flat_no_date" / "photo.JPG"
+    unparseable.parent.mkdir(parents=True)
+    unparseable.touch()
+
+    with pytest.raises(ValueError):
+        _derive_metadata(unparseable, nextcloud_root=None, date=None, batch=None, condition=None)

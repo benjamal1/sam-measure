@@ -149,6 +149,33 @@ def test_stem_to_fields_round_trips_flat():
     assert fields["thread"] == "5.11"
 
 
+# --- canonical_stem validates condition/batch, not just thread (silent-corruption fix) ----
+
+
+def _meta(**overrides):
+    base = dict(
+        batch="8", batch_start_date=None, condition="PostStretch", day="1",
+        date=date(2026, 5, 11), thread=None, source_path=Path("x.JPG"),
+    )
+    base.update(overrides)
+    return PhotoMetadata(**base)
+
+
+def test_canonical_stem_raises_on_unsafe_condition():
+    with pytest.raises(ValueError, match="condition"):
+        canonical_stem(_meta(condition="Pre_Stretch"), "A1")
+
+
+def test_canonical_stem_raises_on_unsafe_batch():
+    with pytest.raises(ValueError, match="batch"):
+        canonical_stem(_meta(batch="8 "), "A1")
+
+
+def test_canonical_stem_still_accepts_safe_condition_and_batch():
+    stem = canonical_stem(_meta(condition="PostStretch", batch="8"), "A1")
+    assert stem == "2026-05-11_batch8_poststretch_threadA1"
+
+
 def test_naming_module_does_not_import_torch_or_cv2():
     import sys
 

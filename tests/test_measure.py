@@ -98,3 +98,25 @@ def test_measure_folder_writes_schema_exact_csv(tmp_path):
     assert (written["mad_px"] >= 0).all()
     assert set(written["date"]) == {"2026-05-11", "2025-08-03"}
     assert len(df) == 2
+
+
+# --- measure_folder isolates a bad mask instead of aborting the whole batch ----------------
+
+
+def test_measure_folder_skips_empty_mask_but_measures_the_rest(tmp_path, capsys):
+    masks_dir = tmp_path / "masks"
+    masks_dir.mkdir()
+    out_csv = tmp_path / "measurements.csv"
+
+    good = np.zeros((50, 50), dtype=bool)
+    good[10:30, 10:15] = True
+    Image.fromarray((good.astype("uint8")) * 255).save(masks_dir / "2026-05-11_thread01.png")
+
+    empty = np.zeros((50, 50), dtype=bool)  # fully empty — measure_mask raises ValueError on this
+    Image.fromarray((empty.astype("uint8")) * 255).save(masks_dir / "2026-05-11_thread02.png")
+
+    df = measure_folder(masks_dir, out_csv)
+
+    assert len(df) == 1  # the bad mask was skipped, not fatal to the run
+    assert df.iloc[0]["thread"] == "01"
+    assert "skipping unmeasurable mask" in capsys.readouterr().out

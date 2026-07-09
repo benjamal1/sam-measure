@@ -4,7 +4,7 @@ matplotlib.use("Agg")  # noqa: E402 — headless, must precede any pyplot import
 import pandas as pd
 import pytest
 
-from calibrate.ruler_scale import px_per_cm, resolve_calibration_factor, write_calibration_csv
+from calibrate.ruler_scale import _discover_ruler_photos, px_per_cm, resolve_calibration_factor, write_calibration_csv
 
 
 def test_px_per_cm_known_distance():
@@ -81,3 +81,40 @@ def test_resolve_calibration_factor_returns_none_for_unknown_batch():
     factor = resolve_calibration_factor(_ROWS, date="2026-05-11", batch="99")
 
     assert factor is None
+
+
+# --- ruler discovery: recursive, extension-filtered, excludes non-image "ruler*" files -----
+
+
+def test_discover_ruler_photos_finds_nested_ruler_files(tmp_path):
+    (tmp_path / "Batch 8" / "D1 05-01-26").mkdir(parents=True)
+    ruler = tmp_path / "Batch 8" / "D1 05-01-26" / "ruler_05-01-26.JPG"
+    ruler.touch()
+
+    found = _discover_ruler_photos(tmp_path)
+
+    assert found == [ruler]
+
+
+def test_discover_ruler_photos_excludes_non_image_ruler_named_files(tmp_path):
+    """A stray ruler_notes.txt (or any non-.jpg/.jpeg file merely starting with 'ruler')
+    must never reach calibrate_ruler/plt.imread — that crashed the whole calibration run."""
+    day = tmp_path / "Batch 8" / "D1 05-01-26"
+    day.mkdir(parents=True)
+    (day / "ruler_05-01-26.JPG").touch()
+    (day / "ruler_notes.txt").touch()
+    (day / "ruler.docx").touch()
+
+    found = _discover_ruler_photos(tmp_path)
+
+    assert found == [day / "ruler_05-01-26.JPG"]
+
+
+def test_discover_ruler_photos_case_insensitive_prefix_and_suffix(tmp_path):
+    day = tmp_path / "Batch 8" / "D1 05-01-26"
+    day.mkdir(parents=True)
+    (day / "Ruler_05-01-26.jpeg").touch()
+
+    found = _discover_ruler_photos(tmp_path)
+
+    assert len(found) == 1
