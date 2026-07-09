@@ -158,6 +158,13 @@ run.
   batch, or an earlier date in the same batch, then rerun step 3 and 4.
 - **Ctrl+C crashes with an abort trap / crash report** — use `q` in the plot window instead
   (see above). Nothing is lost either way, but `q` doesn't crash.
+- **Need to redo one specific photo** — remove its line from `data/processed_photos.json`
+  (plain JSON list of file paths, one per line) so its window reopens on the next run,
+  everything else still skips as usual. If you also want the mask itself redone (not just
+  the window reopened — e.g. it was mislabeled or the segmentation was bad), also delete
+  that thread's existing `data/masks/<stem>.png` and `data/qc/<stem>_overlay.png` — otherwise
+  accepting it again just gets silently skipped since a mask with that exact stem already
+  exists. `--force` is the blunt alternative: reprocesses EVERY photo in the run, not just one.
 
 ## Speed
 
