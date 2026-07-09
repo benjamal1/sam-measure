@@ -322,3 +322,62 @@ def test_n_key_does_not_set_quit_all():
 
     assert state.done is True
     assert state.quit_all is False
+
+
+# --- undo: 'u' reverts the last click or erase, never an already-accepted mask -------------
+
+
+def test_undo_reverts_last_click_point():
+    state = ClickLoopState(
+        predictor=None, image_rgb=np.zeros((100, 100, 3), dtype=np.uint8),
+        predict_fn=_fake_predict_mask,
+    )
+    handle_click(state, _FakeEvent(button=1, xdata=30.0, ydata=40.0))
+    assert state.points == [(30.0, 40.0)]
+
+    handle_key(state, _FakeEvent(key="u"))
+
+    assert state.points == []
+    assert state.current_mask is None
+
+
+def test_undo_reverts_last_erase():
+    state = ClickLoopState(
+        predictor=None, image_rgb=np.zeros((100, 100, 3), dtype=np.uint8),
+        predict_fn=_fake_predict_mask,
+    )
+    handle_click(state, _FakeEvent(button=1, xdata=30.0, ydata=40.0))
+    before_sum = state.current_mask.sum()
+    state.erase_mode = True
+    handle_click(state, _FakeEvent(button=1, xdata=5.0, ydata=5.0))
+    handle_release(state, _FakeEvent(xdata=25.0, ydata=25.0))
+    assert state.current_mask.sum() == 0
+
+    handle_key(state, _FakeEvent(key="u"))
+
+    assert state.current_mask.sum() == before_sum
+
+
+def test_undo_with_empty_history_is_a_noop():
+    state = ClickLoopState(
+        predictor=None, image_rgb=np.zeros((100, 100, 3), dtype=np.uint8),
+        predict_fn=_fake_predict_mask,
+    )
+
+    assert state.undo() is False
+
+
+def test_undo_cannot_reach_back_into_an_already_accepted_mask():
+    """History resets on every accept — 'u' after accepting must not resurrect the prior
+    (already-exported) mask's points, since that mask is already saved and done."""
+    calls = []
+    state = ClickLoopState(
+        predictor=None, image_rgb=np.zeros((100, 100, 3), dtype=np.uint8),
+        predict_fn=_fake_predict_mask, on_accept=lambda mask: (calls.append(mask), False)[1],
+    )
+    handle_click(state, _FakeEvent(button=1, xdata=30.0, ydata=40.0))
+    handle_key(state, _FakeEvent(key="a"))
+    assert len(calls) == 1
+    assert state.history == []
+
+    assert state.undo() is False

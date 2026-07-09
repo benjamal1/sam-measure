@@ -83,19 +83,38 @@ class ClickLoopState:
     erase_drag_start: tuple[float, float] | None = None
     done: bool = False
     quit_all: bool = False
+    history: list[tuple[list, list, np.ndarray | None]] = field(default_factory=list)
+
+    _MAX_HISTORY = 20
 
     def reset(self) -> None:
         """Clear all per-photo (or per-mask, see module docstring) click state.
 
         MUST be called before starting a new image, AND after every accept (whether
         reclicking the same photo for another thread or advancing) — same method, two
-        different trigger points, never confuse the two.
+        different trigger points, never confuse the two. Undo history is per-mask-in-progress
+        too — it must never let you undo back into an already-exported prior mask.
         """
         self.points = []
         self.labels = []
         self.current_mask = None
         self.erase_mode = False
         self.erase_drag_start = None
+        self.history = []
+
+    def push_history(self) -> None:
+        """Snapshot points/labels/current_mask BEFORE a mutating click or erase, so 'u' can
+        restore it. Bounded so a long correction session can't grow this unboundedly."""
+        self.history.append((list(self.points), list(self.labels), self.current_mask))
+        if len(self.history) > self._MAX_HISTORY:
+            self.history.pop(0)
+
+    def undo(self) -> bool:
+        """Restore the most recent pre-mutation snapshot. Returns False (no-op) if empty."""
+        if not self.history:
+            return False
+        self.points, self.labels, self.current_mask = self.history.pop()
+        return True
 
 
 def handle_click(state: ClickLoopState, event) -> None:
@@ -116,9 +135,11 @@ def handle_click(state: ClickLoopState, event) -> None:
         return
 
     if event.button == 1:
+        state.push_history()
         state.points.append((event.xdata, event.ydata))
         state.labels.append(1)
     elif event.button == 3:
+        state.push_history()
         state.points.append((event.xdata, event.ydata))
         state.labels.append(0)
     else:
@@ -138,6 +159,7 @@ def handle_release(state: ClickLoopState, event) -> None:
     if event.xdata is None or event.ydata is None:
         state.erase_drag_start = None
         return
+    state.push_history()
     state.current_mask = erase_box(state.current_mask, state.erase_drag_start, (event.xdata, event.ydata))
     state.erase_drag_start = None
 
@@ -157,6 +179,11 @@ def handle_key(state: ClickLoopState, event) -> None:
     elif event.key == "e":
         if state.current_mask is not None:  # erase is meaningless before a mask exists
             state.erase_mode = not state.erase_mode
+    elif event.key == "u":
+        # Undo the last click (point add) or erase-box, whichever happened most recently —
+        # does NOT undo an already-accepted/exported mask (history is cleared on every accept).
+        if not state.undo():
+            print("nothing to undo")
     elif event.key == "n":
         state.reset()
         state.done = True
@@ -223,7 +250,7 @@ def run_click_loop(
             pass  # some backends (e.g. Agg, used in headless tests) have no window manager
 
     def _title() -> str:
-        base = "Left=positive, Right=negative, 'a'=accept, 'n'=next photo, 'q'=quit (not Ctrl+C)"
+        base = "Left=positive, Right=negative, 'a'=accept, 'u'=undo, 'n'=next photo, 'q'=quit (not Ctrl+C)"
         return f"[ERASE MODE — drag a box] {base}" if state.erase_mode else f"'e'=erase mode (drag a box) | {base}"
 
     # Rubber-band erase-box preview: a single reusable Rectangle patch, recreated on every full

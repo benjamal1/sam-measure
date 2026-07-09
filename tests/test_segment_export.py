@@ -366,3 +366,40 @@ def test_quit_all_stops_processing_remaining_photos(data_root):
     )
 
     assert len(seen) == 1  # stopped after the first photo, never opened the second
+
+
+# --- real bug fix: quitting before any accept must NOT mark the photo processed -----------
+
+
+def test_quit_before_any_accept_does_not_mark_photo_processed(data_root):
+    root = data_root.parent / "input"
+    photo = root / "PreStretch" / "Batch 8 04-24-26" / "D1 04-25-26" / "IMG_0001.JPG"
+    _write_photo(photo)
+
+    masks_dir = data_root / "masks"
+    qc_dir = data_root / "qc"
+
+    class _QuitImmediatelyState:
+        quit_all = True
+
+    def _quit_without_accepting(predictor, image_rgb, on_accept, photo_path=None):
+        return _QuitImmediatelyState()  # 'q' pressed before ever clicking/accepting
+
+    export_folder(
+        input_dir=root, masks_dir=masks_dir, qc_dir=qc_dir, predictor=None,
+        click_loop=_quit_without_accepting,
+        nextcloud_root=root, condition="PreStretch",
+    )
+
+    # Rerun with a click_loop that would raise if invoked — the photo must still be OPEN,
+    # i.e. reprocessed, since nothing was ever actually labeled on it last time.
+    seen: list = []
+    export_folder(
+        input_dir=root, masks_dir=masks_dir, qc_dir=qc_dir, predictor=None,
+        click_loop=_accepting_click_loop(seen),
+        nextcloud_root=root, condition="PreStretch",
+        prompt_thread=lambda name, guess: "01",
+        prompt_more_threads=lambda name: False,
+    )
+
+    assert len(seen) == 1  # photo was reopened — the bug this test guards against

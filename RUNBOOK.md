@@ -45,7 +45,9 @@ PYTHONPATH=src .venv/bin/python -m segment.segment_export \
 | Negative point (mark "not thread") | Right click |
 | Accept current mask | `a` — then type condition + thread |
 | Erase mode (fix a bad region, e.g. a needle) | `e` to toggle, then **click-drag a box** over the region to remove, release to erase |
+| Undo last click or erase | `u` — never undoes an already-accepted/exported mask |
 | Skip this photo | `n` |
+| Quit the whole run | `q` — see below, not Ctrl+C |
 
 After accepting a mask, you're asked whether to **label another thread on the same photo**
 (for the multi-thread composite shots) or **advance to the next photo**.

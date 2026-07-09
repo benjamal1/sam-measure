@@ -273,9 +273,11 @@ def export_folder(
                 continue
 
         image_rgb = np.array(Image.open(photo_path).convert("RGB"))
+        had_any_accept = {"v": False}
 
         def on_accept(mask, guess=guess, image_rgb=image_rgb):
             nonlocal manifest
+            had_any_accept["v"] = True
             condition_value = condition if condition is not None else _resolve_field(
                 None, guess.condition, prompt_condition, photo_path.name
             )
@@ -300,12 +302,19 @@ def export_folder(
             return not prompt_more_threads(photo_path.name)
 
         loop_state = click_loop(predictor, image_rgb, on_accept, photo_path=photo_path)
-        # The photo's window has now closed — either every thread on it was labeled+advanced,
-        # or the user pressed 'n' to skip it outright. Either way there's nothing left to ask
-        # about it, so mark it done and never reopen its window again (until --force).
-        processed = _mark_photo_processed(masks_dir.parent, processed, photo_path)
+        quit_requested = getattr(loop_state, "quit_all", False)
 
-        if getattr(loop_state, "quit_all", False):
+        # The photo's window has now closed. Mark it done UNLESS the user quit ('q') before
+        # ever accepting anything on it — that photo genuinely wasn't touched (real bug fixed
+        # here: quitting mid-photo previously marked it processed even with zero accepts,
+        # meaning it silently disappeared from future runs despite never being labeled).
+        # A normal 'n' skip or a completed labeling session is unaffected — both still mark done.
+        if quit_requested and not had_any_accept["v"]:
+            print(f"'q' pressed before labeling anything on {photo_path.name} — will reopen next run")
+        else:
+            processed = _mark_photo_processed(masks_dir.parent, processed, photo_path)
+
+        if quit_requested:
             print("stopped ('q') — already-labeled photos are saved, rerun the same command to resume")
             break
 
