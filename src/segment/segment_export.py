@@ -230,6 +230,17 @@ def main() -> None:
     parser.add_argument("--force", action="store_true", default=False)
     args = parser.parse_args()
 
+    if not args.input_dir.is_dir():
+        raise SystemExit(
+            f"--input-dir does not exist or is not a directory: {args.input_dir}\n"
+            "(if you copy-pasted this path, check for lookalike unicode characters — "
+            "cd into it interactively and use $PWD instead of retyping it)"
+        )
+    found = _discover_photos(args.input_dir)
+    print(f"found {len(found)} photo(s) under {args.input_dir}")
+    if not found:
+        raise SystemExit("no .JPG photos found (excluding ruler_*) — check --input-dir is correct")
+
     predictor = load_predictor()
 
     manifest = export_folder(
