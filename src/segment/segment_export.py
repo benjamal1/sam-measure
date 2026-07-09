@@ -294,6 +294,15 @@ def main() -> None:
     parser.add_argument("--masks-dir", type=Path, default=Path("data/masks"))
     parser.add_argument("--qc-dir", type=Path, default=Path("data/qc"))
     parser.add_argument("--force", action="store_true", default=False)
+    parser.add_argument(
+        "--checkpoint", type=Path, default=None,
+        help="SAM2 checkpoint path — try vendor/sam2/checkpoints/sam2.1_hiera_tiny.pt for more "
+             "speed at some accuracy cost (default: sam2.1_hiera_small.pt)",
+    )
+    parser.add_argument(
+        "--model-cfg", type=str, default=None,
+        help="Matching model config — 'configs/sam2.1/sam2.1_hiera_t.yaml' for the tiny checkpoint",
+    )
     args = parser.parse_args()
 
     if not args.input_dir.is_dir():
@@ -307,13 +316,27 @@ def main() -> None:
     if not found:
         raise SystemExit("no .JPG photos found (excluding ruler_*) — check --input-dir is correct")
 
-    predictor = load_predictor()
+    load_predictor_kwargs = {}
+    if args.checkpoint is not None:
+        load_predictor_kwargs["checkpoint"] = args.checkpoint
+    if args.model_cfg is not None:
+        load_predictor_kwargs["model_cfg"] = args.model_cfg
+    predictor = load_predictor(**load_predictor_kwargs)
 
-    manifest = export_folder(
-        args.input_dir, args.masks_dir, args.qc_dir, predictor,
-        force=args.force, nextcloud_root=args.nextcloud_root,
-        date=args.date, batch=args.batch, condition=args.condition, thread=args.thread,
-    )
+    try:
+        manifest = export_folder(
+            args.input_dir, args.masks_dir, args.qc_dir, predictor,
+            force=args.force, nextcloud_root=args.nextcloud_root,
+            date=args.date, batch=args.batch, condition=args.condition, thread=args.thread,
+        )
+    except KeyboardInterrupt:
+        # Ctrl+C is the documented way to stop mid-session (RUNBOOK.md) — every accepted
+        # mask already wrote to disk immediately, and each finished photo is already recorded
+        # in data/processed_photos.json, so nothing here is lost. Exit cleanly instead of
+        # dumping a raw traceback, which reads as a crash rather than an expected stop.
+        print("\nstopped — already-labeled photos are saved, rerun the same command to resume")
+        raise SystemExit(0)
+
     manifest_path = write_manifest(manifest, args.masks_dir.parent)
     print(f"wrote manifest to {manifest_path}")
 

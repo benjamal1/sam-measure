@@ -124,6 +124,25 @@ run.
 - **A hard-fail from `build_final_csv` naming a session** — that session has no ruler
   calibration it can use (not even a same-batch earlier one). Add a ruler photo for that
   batch, or an earlier date in the same batch, then rerun step 3 and 4.
+- **Ctrl+C prints a message and quits** — that's expected, not a crash. Every accepted mask
+  already wrote to disk immediately, so nothing is lost; rerun the same command to resume.
+
+## Speed
+
+The first click on each photo pays a one-time SAM2 encoder cost (photo → embedding); every
+click after that on the same photo is cheap. If it's still too slow, try the smaller `tiny`
+checkpoint (faster, small accuracy tradeoff — hasn't been re-validated against ImageJ
+ground truth the way `small` has):
+
+```bash
+curl -L -o vendor/sam2/checkpoints/sam2.1_hiera_tiny.pt \
+  https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_tiny.pt
+
+PYTHONPATH=src .venv/bin/python -m segment.segment_export \
+  --input-dir "/path/to/your/photos" \
+  --checkpoint vendor/sam2/checkpoints/sam2.1_hiera_tiny.pt \
+  --model-cfg configs/sam2.1/sam2.1_hiera_t.yaml
+```
 
 ## Tests
 
