@@ -82,6 +82,7 @@ class ClickLoopState:
     erase_mode: bool = False
     erase_drag_start: tuple[float, float] | None = None
     done: bool = False
+    quit_all: bool = False
 
     def reset(self) -> None:
         """Clear all per-photo (or per-mask, see module docstring) click state.
@@ -159,6 +160,14 @@ def handle_key(state: ClickLoopState, event) -> None:
     elif event.key == "n":
         state.reset()
         state.done = True
+    elif event.key == "q":
+        # Stop the ENTIRE run, not just this photo — the proper way to quit, instead of
+        # Ctrl+C. Ctrl+C during Tk's mainloop hits a known Tk/macOS quirk (Tcl's own signal
+        # handler tears down mid-flight and aborts the process) — this avoids ever sending
+        # a signal into Tk at all, it's a plain Python flag checked after the window closes.
+        state.reset()
+        state.done = True
+        state.quit_all = True
 
 
 def run_click_loop(
@@ -214,7 +223,7 @@ def run_click_loop(
             pass  # some backends (e.g. Agg, used in headless tests) have no window manager
 
     def _title() -> str:
-        base = "Left=positive, Right=negative, 'a'=accept (label + reclick-or-advance), 'n'=next photo"
+        base = "Left=positive, Right=negative, 'a'=accept, 'n'=next photo, 'q'=quit (not Ctrl+C)"
         return f"[ERASE MODE — drag a box] {base}" if state.erase_mode else f"'e'=erase mode (drag a box) | {base}"
 
     # Rubber-band erase-box preview: a single reusable Rectangle patch, recreated on every full

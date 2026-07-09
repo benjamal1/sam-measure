@@ -299,11 +299,15 @@ def export_folder(
                 return True  # thread already fully known — nothing more to label, advance
             return not prompt_more_threads(photo_path.name)
 
-        click_loop(predictor, image_rgb, on_accept, photo_path=photo_path)
+        loop_state = click_loop(predictor, image_rgb, on_accept, photo_path=photo_path)
         # The photo's window has now closed — either every thread on it was labeled+advanced,
         # or the user pressed 'n' to skip it outright. Either way there's nothing left to ask
         # about it, so mark it done and never reopen its window again (until --force).
         processed = _mark_photo_processed(masks_dir.parent, processed, photo_path)
+
+        if getattr(loop_state, "quit_all", False):
+            print("stopped ('q') — already-labeled photos are saved, rerun the same command to resume")
+            break
 
     return manifest
 

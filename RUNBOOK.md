@@ -56,9 +56,14 @@ exactly what was measured.
 
 **Resuming after a restart:** a photo whose window you've already closed (either you
 labeled all its threads and advanced, or pressed `n` to skip it) is never reopened again
-on a later run — it's tracked in `data/processed_photos.json`. Safe to Ctrl+C mid-session
-any time; rerun the same command and it picks up exactly where you left off. `--force`
-ignores this and reprocesses everything from scratch.
+on a later run — it's tracked in `data/processed_photos.json`. `--force` ignores this and
+reprocesses everything from scratch.
+
+**To stop mid-session, press `q` in the plot window — not Ctrl+C.** Ctrl+C during Tk's
+window loop hits a known Tk/macOS bug (Tcl's own signal handler tears the process down
+mid-flight and hard-crashes with an abort trap) — harmless (nothing is lost, same as any
+other stop), but the crash trace looks alarming. `q` stops the whole run cleanly through
+plain Python instead of a signal. Rerun the same command any time to resume.
 
 **If a folder's date/batch truly can't be inferred** from its path, pass them explicitly:
 `--date MM-DD-YY --batch N`. (`--condition`/`--thread` can also be forced this way, but
@@ -124,8 +129,8 @@ run.
 - **A hard-fail from `build_final_csv` naming a session** — that session has no ruler
   calibration it can use (not even a same-batch earlier one). Add a ruler photo for that
   batch, or an earlier date in the same batch, then rerun step 3 and 4.
-- **Ctrl+C prints a message and quits** — that's expected, not a crash. Every accepted mask
-  already wrote to disk immediately, so nothing is lost; rerun the same command to resume.
+- **Ctrl+C crashes with an abort trap / crash report** — use `q` in the plot window instead
+  (see above). Nothing is lost either way, but `q` doesn't crash.
 
 ## Speed
 

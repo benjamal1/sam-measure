@@ -333,3 +333,36 @@ def test_skipping_a_photo_with_n_also_marks_it_processed(data_root):
     )
 
     assert manifest["outputs"][0]["action"] == "skipped"
+
+
+# --- 'q' (quit_all) stops the whole export_folder run, not just the current photo ---------
+
+
+def test_quit_all_stops_processing_remaining_photos(data_root):
+    root = data_root.parent / "input"
+    photo1 = root / "PreStretch" / "Batch 8 04-24-26" / "D1 04-25-26" / "IMG_0001.JPG"
+    photo2 = root / "PreStretch" / "Batch 8 04-24-26" / "D1 04-25-26" / "IMG_0002.JPG"
+    _write_photo(photo1)
+    _write_photo(photo2)
+
+    class _FakeState:
+        quit_all = True
+
+    seen: list = []
+
+    def _quit_after_one_photo(predictor, image_rgb, on_accept, photo_path=None):
+        seen.append(photo_path)
+        mask = np.zeros(image_rgb.shape[:2], dtype=bool)
+        mask[2:5, 2:5] = True
+        on_accept(mask)
+        return _FakeState()
+
+    export_folder(
+        input_dir=root, masks_dir=data_root / "masks", qc_dir=data_root / "qc", predictor=None,
+        click_loop=_quit_after_one_photo,
+        nextcloud_root=root, condition="PreStretch",
+        prompt_thread=lambda name, guess: "01",
+        prompt_more_threads=lambda name: False,
+    )
+
+    assert len(seen) == 1  # stopped after the first photo, never opened the second

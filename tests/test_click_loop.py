@@ -293,3 +293,32 @@ def test_accept_on_fully_erased_empty_mask_is_a_noop_not_an_export():
 
     assert calls == []
     assert state.done is False
+
+
+# --- 'q' quits the entire run, not just this photo (proper alternative to Ctrl+C) ----------
+
+
+def test_q_key_sets_done_and_quit_all():
+    state = ClickLoopState(
+        predictor=None, image_rgb=np.zeros((100, 100, 3), dtype=np.uint8),
+        predict_fn=_fake_predict_mask,
+    )
+    handle_click(state, _FakeEvent(button=1, xdata=30.0, ydata=40.0))
+
+    handle_key(state, _FakeEvent(key="q"))
+
+    assert state.done is True
+    assert state.quit_all is True
+    assert state.points == []  # 'q' resets click-state same as 'n'
+
+
+def test_n_key_does_not_set_quit_all():
+    state = ClickLoopState(
+        predictor=None, image_rgb=np.zeros((100, 100, 3), dtype=np.uint8),
+        predict_fn=_fake_predict_mask,
+    )
+
+    handle_key(state, _FakeEvent(key="n"))
+
+    assert state.done is True
+    assert state.quit_all is False
