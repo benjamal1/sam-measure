@@ -25,3 +25,24 @@ def erase_region(mask: np.ndarray, points: list[tuple[float, float]], radius: in
         result[dist_sq <= radius ** 2] = False
 
     return result
+
+
+def erase_box(mask: np.ndarray, p1: tuple[float, float], p2: tuple[float, float]) -> np.ndarray:
+    """Return a NEW boolean array with True pixels cleared inside the rectangle p1..p2.
+
+    p1/p2 are (x, y) image coordinates in either order (drag can go any direction).
+    A degenerate (zero-area) box is a no-op — never mutates the input mask.
+    """
+    result = mask.copy()
+    h, w = result.shape
+
+    x0, x1 = sorted((p1[0], p2[0]))
+    y0, y1 = sorted((p1[1], p2[1]))
+
+    xi0, xi1 = max(0, int(round(x0))), min(w, int(round(x1)) + 1)
+    yi0, yi1 = max(0, int(round(y0))), min(h, int(round(y1)) + 1)
+
+    if xi1 > xi0 and yi1 > yi0:
+        result[yi0:yi1, xi0:xi1] = False
+
+    return result

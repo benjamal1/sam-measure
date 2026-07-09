@@ -9,7 +9,7 @@ matplotlib.use("Agg")  # noqa: E402
 
 import numpy as np
 
-from segment.click_loop import ClickLoopState, handle_click, handle_key
+from segment.click_loop import ClickLoopState, handle_click, handle_key, handle_release
 
 
 class _FakeEvent:
@@ -82,25 +82,86 @@ def test_state_reset_clears_points_and_mask():
     )
     handle_click(state, _FakeEvent(button=1, xdata=30.0, ydata=40.0))
     assert state.points
+    state.erase_mode = True
+    state.erase_drag_start = (1.0, 1.0)
 
     state.reset()
 
     assert state.points == []
     assert state.labels == []
     assert state.current_mask is None
+    assert state.erase_mode is False
+    assert state.erase_drag_start is None
 
 
-def test_erase_key_applies_erase_region_to_accepted_mask():
+def test_erase_key_toggles_erase_mode_only_when_a_mask_exists():
     state = ClickLoopState(
         predictor=None, image_rgb=np.zeros((100, 100, 3), dtype=np.uint8),
         predict_fn=_fake_predict_mask,
     )
     handle_click(state, _FakeEvent(button=1, xdata=30.0, ydata=40.0))
+
+    handle_key(state, _FakeEvent(key="e"))
+
+    assert state.erase_mode is True
+
+
+def test_erase_key_before_any_mask_is_a_noop():
+    state = ClickLoopState(
+        predictor=None, image_rgb=np.zeros((100, 100, 3), dtype=np.uint8),
+        predict_fn=_fake_predict_mask,
+    )
+
+    handle_key(state, _FakeEvent(key="e"))
+
+    assert state.erase_mode is False
+
+
+def test_erase_drag_press_then_release_clears_box_from_mask():
+    """Erase is a click-drag box select: press records the start, release performs the erase."""
+    state = ClickLoopState(
+        predictor=None, image_rgb=np.zeros((100, 100, 3), dtype=np.uint8),
+        predict_fn=_fake_predict_mask,  # fills mask[10:20, 10:20] = True
+    )
+    handle_click(state, _FakeEvent(button=1, xdata=30.0, ydata=40.0))
+    state.erase_mode = True
+
+    handle_click(state, _FakeEvent(button=1, xdata=5.0, ydata=5.0))
+    assert state.erase_drag_start == (5.0, 5.0)
+    assert state.current_mask.sum() > 0  # not erased yet, only the drag started
+
+    handle_release(state, _FakeEvent(xdata=25.0, ydata=25.0))
+
+    assert state.current_mask.sum() == 0  # (5,5)-(25,25) box fully covers the 10:20,10:20 fill
+    assert state.erase_drag_start is None
+
+
+def test_erase_click_alone_without_release_does_not_erase():
+    state = ClickLoopState(
+        predictor=None, image_rgb=np.zeros((100, 100, 3), dtype=np.uint8),
+        predict_fn=_fake_predict_mask,
+    )
+    handle_click(state, _FakeEvent(button=1, xdata=30.0, ydata=40.0))
+    state.erase_mode = True
     before_sum = state.current_mask.sum()
 
-    handle_key(state, _FakeEvent(key="e", xdata=15.0, ydata=15.0))
+    handle_click(state, _FakeEvent(button=1, xdata=15.0, ydata=15.0))
 
-    assert state.current_mask.sum() <= before_sum
+    assert state.current_mask.sum() == before_sum  # erase only completes on release
+
+
+def test_erase_release_without_a_prior_drag_start_is_noop():
+    state = ClickLoopState(
+        predictor=None, image_rgb=np.zeros((100, 100, 3), dtype=np.uint8),
+        predict_fn=_fake_predict_mask,
+    )
+    handle_click(state, _FakeEvent(button=1, xdata=30.0, ydata=40.0))
+    state.erase_mode = True
+    before_sum = state.current_mask.sum()
+
+    handle_release(state, _FakeEvent(xdata=15.0, ydata=15.0))
+
+    assert state.current_mask.sum() == before_sum
 
 
 # --- Task 2: multi-thread-per-photo label loop --------------------------------------------

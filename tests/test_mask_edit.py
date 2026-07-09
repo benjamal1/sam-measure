@@ -1,6 +1,6 @@
 import numpy as np
 
-from segment.mask_edit import erase_region
+from segment.mask_edit import erase_box, erase_region
 
 
 def test_erase_region_reduces_true_pixel_count():
@@ -41,6 +41,49 @@ def test_erase_region_empty_points_returns_equal_copy():
 
     assert np.array_equal(result, mask)
     assert result is not mask
+
+
+def test_erase_box_clears_only_pixels_inside_the_rectangle():
+    mask = np.ones((100, 100), dtype=bool)
+
+    result = erase_box(mask, (10, 10), (30, 30))
+
+    assert not result[10:31, 10:31].any()
+    assert result[50, 50]  # outside the box, untouched
+
+
+def test_erase_box_works_with_reversed_corner_order():
+    mask = np.ones((100, 100), dtype=bool)
+
+    result = erase_box(mask, (30, 30), (10, 10))  # p2 "before" p1
+
+    assert not result[10:31, 10:31].any()
+
+
+def test_erase_box_does_not_mutate_input():
+    mask = np.ones((100, 100), dtype=bool)
+    original = mask.copy()
+
+    erase_box(mask, (10, 10), (30, 30))
+
+    assert np.array_equal(mask, original)
+
+
+def test_erase_box_degenerate_zero_area_clears_only_the_single_pixel():
+    mask = np.ones((100, 100), dtype=bool)
+
+    result = erase_box(mask, (50, 50), (50, 50))
+
+    assert not result[50, 50]
+    assert result.sum() == mask.sum() - 1
+
+
+def test_erase_box_clamps_to_mask_bounds():
+    mask = np.ones((20, 20), dtype=bool)
+
+    result = erase_box(mask, (-5, -5), (100, 100))  # way outside bounds either direction
+
+    assert not result.any()
 
 
 def test_mask_edit_does_not_import_torch_or_cv2():

@@ -29,7 +29,7 @@ from typing import Callable
 
 import numpy as np
 
-from segment.mask_edit import erase_region
+from segment.mask_edit import erase_box
 from segment.sam2_session import predict_mask as _default_predict_mask
 
 
@@ -43,6 +43,7 @@ class ClickLoopState:
     labels: list[int] = field(default_factory=list)
     current_mask: np.ndarray | None = None
     erase_mode: bool = False
+    erase_drag_start: tuple[float, float] | None = None
     done: bool = False
 
     def reset(self) -> None:
@@ -56,17 +57,24 @@ class ClickLoopState:
         self.labels = []
         self.current_mask = None
         self.erase_mode = False
+        self.erase_drag_start = None
 
 
 def handle_click(state: ClickLoopState, event) -> None:
-    """button 1 = left = positive point (label 1); button 3 = right = negative point (label 0)."""
+    """Mouse-DOWN handler. button 1 = left = positive point (label 1) OR erase-drag start
+    (in erase mode); button 3 = right = negative point (label 0, ignored in erase mode).
+
+    Erase is a click-drag box select (not a per-click radius) for more precise removal of
+    unwanted blobs (e.g. a needle) — the actual erase happens on mouse-UP, see handle_release.
+    """
     if event.xdata is None or event.ydata is None:
         return
 
     if state.erase_mode:
         if state.current_mask is None:
             return  # nothing to erase yet — no-op instead of crashing
-        state.current_mask = erase_region(state.current_mask, [(event.xdata, event.ydata)])
+        if event.button == 1:
+            state.erase_drag_start = (event.xdata, event.ydata)
         return
 
     if event.button == 1:
@@ -79,6 +87,21 @@ def handle_click(state: ClickLoopState, event) -> None:
         return
 
     state.current_mask = state.predict_fn(state.predictor, state.image_rgb, state.points, state.labels)
+
+
+def handle_release(state: ClickLoopState, event) -> None:
+    """Mouse-UP handler: completes an erase-box drag started in handle_click.
+
+    No-op outside erase mode or if no drag was started (e.g. release without a matching
+    press, or the press landed off-canvas so xdata/ydata was None and no start was recorded).
+    """
+    if not state.erase_mode or state.erase_drag_start is None:
+        return
+    if event.xdata is None or event.ydata is None:
+        state.erase_drag_start = None
+        return
+    state.current_mask = erase_box(state.current_mask, state.erase_drag_start, (event.xdata, event.ydata))
+    state.erase_drag_start = None
 
 
 def handle_key(state: ClickLoopState, event) -> None:
@@ -117,11 +140,10 @@ def run_click_loop(predictor, image_rgb: np.ndarray, on_accept: Callable[[np.nda
     ax.imshow(image_rgb)
     ax.set_title(
         "Left=positive, Right=negative, 'a'=accept (label + reclick-or-advance), "
-        "'e'=erase mode, 'n'=next photo"
+        "'e'=erase mode (drag a box), 'n'=next photo"
     )
 
-    def _on_click(event):
-        handle_click(state, event)
+    def _redraw():
         ax.clear()
         ax.imshow(image_rgb)
         if state.current_mask is not None:
@@ -130,16 +152,23 @@ def run_click_loop(predictor, image_rgb: np.ndarray, on_accept: Callable[[np.nda
             ax.imshow(overlay)
         fig.canvas.draw_idle()
 
+    def _on_press(event):
+        handle_click(state, event)
+        _redraw()
+
+    def _on_release(event):
+        handle_release(state, event)
+        _redraw()
+
     def _on_key(event):
         handle_key(state, event)
         if state.done:
             plt.close(fig)
             return
-        ax.clear()
-        ax.imshow(image_rgb)
-        fig.canvas.draw_idle()
+        _redraw()
 
-    fig.canvas.mpl_connect("button_press_event", _on_click)
+    fig.canvas.mpl_connect("button_press_event", _on_press)
+    fig.canvas.mpl_connect("button_release_event", _on_release)
     fig.canvas.mpl_connect("key_press_event", _on_key)
     plt.show()
 
