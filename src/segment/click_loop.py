@@ -43,27 +43,6 @@ from segment.sam2_session import predict_mask as _default_predict_mask
 _VALID_LABEL_RE = re.compile(r"^[^_/\\\s]+$")
 
 
-def _capture_frontmost_app_name() -> str | None:
-    """macOS only: name of whatever app was focused when the click window opened. Kept for
-    the WINDOW TITLE convenience (see run_click_loop) — no longer used to refocus a terminal
-    for a prompt, since labeling is now in-canvas and never needs a separate app focused."""
-    import sys
-
-    if sys.platform != "darwin":
-        return None
-    import subprocess
-
-    try:
-        result = subprocess.run(
-            ["osascript", "-e",
-             'tell application "System Events" to name of first application process whose frontmost is true'],
-            capture_output=True, text=True, timeout=2,
-        )
-        return result.stdout.strip() or None
-    except Exception:
-        return None  # best-effort UX only — never let this block/crash the session
-
-
 @dataclass
 class ClickLoopState:
     predictor: object

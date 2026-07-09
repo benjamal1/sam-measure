@@ -30,12 +30,18 @@ PYTHONPATH=src .venv/bin/python -m segment.segment_export \
   folder to process every batch/condition/day in one sitting, no restarting per photo.
 - `ruler_*.JPG` files are automatically excluded from the click queue (they're consumed
   separately by the calibration step below).
-- **Condition and thread number are typed by you**, not guessed from the folder — the tool
-  shows a suggested default parsed from the path when it can, but your typed value always
-  wins. Date/batch are auto-detected from the folder names (`Batch N`, `D# MM-DD-YY`,
-  `PreStretch`/`PostStretch`) wherever those are present, in any order/nesting.
-- **The window opens first**, before anything is asked of you — you look at the photo,
-  click, then type condition + thread when you press `a` to accept.
+- **Condition and thread number are typed by you**, not guessed from the folder — but
+  condition is almost always auto-detected correctly from the folder path (`PreStretch`/
+  `PostStretch`), so in practice you're usually only typing the thread number. Date/batch
+  are auto-detected from the folder names (`Batch N`, `D# MM-DD-YY`) wherever present, in
+  any order/nesting.
+- **Everything happens in the plot window — no terminal typing at all.** The window opens
+  first; you click, press `a`, and a small text box appears directly on the photo asking for
+  whatever's unknown (usually just thread number). Type it, press Enter, and you're right
+  back to clicking — no need to switch windows/apps to type.
+- **No more "label another thread?" prompt.** After you submit a label, the photo just stays
+  open, ready for another click — press `n` yourself whenever you're actually done with this
+  photo's threads. Fewer steps than the old flow, not more.
 
 **In the click window:**
 
@@ -44,14 +50,15 @@ PYTHONPATH=src .venv/bin/python -m segment.segment_export \
 | Positive point (mark thread) | Left click |
 | Negative point (mark "not thread") | Right click |
 | Zoom in/out | Scroll wheel, centered on cursor |
-| Accept current mask | `a` — then type condition + thread |
+| Accept + label current mask | `a` — a text box appears on the photo, type and press Enter |
 | Erase mode (fix a bad region, e.g. a needle) | `e` to toggle, then **click-drag a box** over the region to remove, release to erase |
 | Undo last click or erase | `u` — never undoes an already-accepted/exported mask |
-| Skip this photo | `n` |
+| Advance to next photo | `n` — press whenever you're done labeling this photo's threads |
 | Quit the whole run | `q` — see below, not Ctrl+C |
 
-After accepting a mask, you're asked whether to **label another thread on the same photo**
-(for the multi-thread composite shots) or **advance to the next photo**.
+A photo with multiple threads (composite shots): click a thread, `a`, type its label, Enter
+— you're back to clicking immediately. Repeat per thread, then press `n` once when the whole
+photo is done.
 
 Masks land in `data/masks/`, a red-tinted overlay QC image lands in `data/qc/` for every
 accepted mask — check `data/qc/` if a measurement looks off later, the overlay shows
