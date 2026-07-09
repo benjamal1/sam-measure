@@ -300,17 +300,29 @@ def run_click_loop(
         )
         return f"[ERASE MODE — drag a box] {base}" if state.erase_mode else f"'e'=erase mode (drag a box) | {base}"
 
-    # Rubber-band erase-box preview: a single reusable Rectangle patch, recreated on every full
-    # _redraw() (ax.clear() wipes patches) but updated CHEAPLY on plain mouse-move without a
-    # full image re-render — re-imshow()-ing the whole photo on every motion event would be
-    # the actual laggy part for a large macro photo, not SAM2 (SAM2 isn't invoked by erase at all).
-    drag_rect = {"patch": None}
+    # Persistent artists, created ONCE and updated in place — not cleared/recreated on every
+    # interaction. The base photo (image_rgb) never changes across clicks on the same photo,
+    # so there is no reason to re-encode/re-transmit it on every click/keypress; only the
+    # small overlay array and rectangle patch actually change. This is the main lag fix: the
+    # old approach did ax.clear() + a fresh imshow(image_rgb) on every single interaction,
+    # which for a large macro photo re-sends the FULL image over WebAgg's websocket every
+    # time — unrelated to SAM2 (SAM2 only runs on an actual click, never on accept/label/erase).
+    ax.imshow(image_rgb)
+    _overlay_rgba = np.zeros((*image_rgb.shape[:2], 4))
+    overlay_artist = ax.imshow(_overlay_rgba)
+    drag_rect = {"patch": mpatches.Rectangle(
+        (0, 0), 0, 0, edgecolor="yellow", facecolor="none", linewidth=1.5, visible=False,
+    )}
+    ax.add_patch(drag_rect["patch"])
 
-    # Zoom state: ax.clear() (in _redraw) resets axis limits to the full image extent, so the
-    # current zoom window is captured before each clear and reapplied after — otherwise every
-    # click/accept/key would silently reset any zoom the user scrolled in to. None on the very
-    # first draw (nothing to preserve yet).
-    zoom_limits = {"xlim": None, "ylim": None}
+    def _update_overlay():
+        if state.current_mask is not None:
+            _overlay_rgba[..., 3] = 0
+            _overlay_rgba[state.current_mask] = [1, 0, 0, 0.4]
+            overlay_artist.set_data(_overlay_rgba)
+        else:
+            _overlay_rgba[..., 3] = 0
+            overlay_artist.set_data(_overlay_rgba)
 
     # In-canvas label TextBox: one small axes, created once, shown/hidden as needed rather
     # than recreated per prompt (recreating a widget's own axes on every _redraw() would lose
@@ -340,6 +352,11 @@ def run_click_loop(
             guess = known_condition if state.label_field == "condition" else known_thread
             label_box.label.set_text(f"{state.label_field}: ")
             label_box.set_val(guess or "")
+            # Grab keyboard focus programmatically — without this, the box just sits
+            # there and the user has to click INTO it first before typing does anything.
+            label_box.begin_typing()
+            label_box.cursor_index = len(label_box.text)
+            label_box._rendercursor()
         else:
             label_ax.set_visible(False)
 
@@ -356,24 +373,10 @@ def run_click_loop(
     label_box.on_submit(_on_label_submit)
 
     def _redraw():
-        if zoom_limits["xlim"] is not None:
-            zoom_limits["xlim"] = ax.get_xlim()
-            zoom_limits["ylim"] = ax.get_ylim()
-        ax.clear()
-        ax.imshow(image_rgb)
-        if state.current_mask is not None:
-            overlay = np.zeros((*state.current_mask.shape, 4))
-            overlay[state.current_mask] = [1, 0, 0, 0.4]
-            ax.imshow(overlay)
-        rect = mpatches.Rectangle((0, 0), 0, 0, edgecolor="yellow", facecolor="none", linewidth=1.5, visible=False)
-        ax.add_patch(rect)
-        drag_rect["patch"] = rect
-        if zoom_limits["xlim"] is not None:
-            ax.set_xlim(zoom_limits["xlim"])
-            ax.set_ylim(zoom_limits["ylim"])
-        else:
-            zoom_limits["xlim"] = ax.get_xlim()
-            zoom_limits["ylim"] = ax.get_ylim()
+        """Update the overlay/title in place — no ax.clear(), no re-imshow() of the base
+        photo. Zoom (axis limits) is untouched by this, since nothing is ever cleared."""
+        _update_overlay()
+        drag_rect["patch"].set_visible(False)
         ax.set_title(_title())
         fig.canvas.draw_idle()
 
@@ -393,8 +396,6 @@ def run_click_loop(
         rely = (ylim[1] - y) / (ylim[1] - ylim[0])
         ax.set_xlim([x - new_w * (1 - relx), x + new_w * relx])
         ax.set_ylim([y - new_h * (1 - rely), y + new_h * rely])
-        zoom_limits["xlim"] = ax.get_xlim()
-        zoom_limits["ylim"] = ax.get_ylim()
         fig.canvas.draw_idle()
 
     def _on_press(event):
@@ -431,8 +432,18 @@ def run_click_loop(
             plt.close(fig)
             return
         if state.label_active:
+            # Just entered label mode ('a' with something unknown to ask) — the mask/overlay
+            # hasn't changed, only the box needs to appear. Skip _update_overlay/title-redraw
+            # entirely: a title-string draw_idle is enough.
             _sync_label_box()
-        _redraw()
+            fig.canvas.draw_idle()
+        elif event.key == "e":
+            # Erase-mode toggle only changes the title text, not the mask/overlay — no need
+            # to touch the overlay artist at all.
+            ax.set_title(_title())
+            fig.canvas.draw_idle()
+        else:
+            _redraw()
 
     _redraw()
     fig.canvas.mpl_connect("button_press_event", _on_press)
