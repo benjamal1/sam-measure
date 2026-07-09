@@ -73,15 +73,39 @@ plain Python instead of a signal. Rerun the same command any time to resume.
 that applies the SAME value to every photo in the run — only use them for a single
 already-known folder, not a mixed batch-wide run.)
 
+## 1.5. Clean up masks — strip disconnected stray blobs (optional but recommended)
+
+```bash
+# preview first — writes nothing
+PYTHONPATH=src .venv/bin/python scripts/cleanup_masks.py --masks-dir data/masks
+
+# writes a full cleaned COPY to data/masks_cleaned/ — originals in data/masks/ untouched
+PYTHONPATH=src .venv/bin/python scripts/cleanup_masks.py --masks-dir data/masks --apply
+```
+
+Strips any blob disconnected from the largest region in each mask (e.g. SAM2 picking up a
+small stray patch elsewhere in frame) — one less thing to manually erase in the click loop.
+Only removes DISCONNECTED specks; a stray region actually touching/overlapping the real
+thread still needs manual erasing in step 1. Writes every mask (cleaned or already-clean) to
+`data/masks_cleaned/` so step 2 has the full set to work from — point step 2 at whichever
+folder (`data/masks` or `data/masks_cleaned`) you want measured.
+
+This is completely independent of segmentation progress — `data/processed_photos.json` and
+the originals in `data/masks/` are untouched either way, so going back to step 1 later to
+segment more photos works exactly the same regardless of whether you've run this or any
+later pipeline step in between.
+
 ## 2. Measure — mask → pixel-space area/diameter/MAD
 
 ```bash
-PYTHONPATH=src .venv/bin/python -m measure.measure_masks
+PYTHONPATH=src .venv/bin/python -m measure.measure_masks --masks-dir data/masks_cleaned
 ```
 
-Reads every mask in `data/masks/`, writes `data/csv/measurements.csv` with area, average
-diameter, StDev, and MAD (median absolute deviation — a spread metric more robust to
-SAM2's jagged mask-boundary noise than StDev; both are reported). A mask that somehow
+(Omit `--masks-dir` to read straight from `data/masks/` instead, if you skipped step 1.5.)
+
+Writes `data/csv/measurements.csv` with area, average diameter, StDev, and MAD (median
+absolute deviation — a spread metric more robust to SAM2's jagged mask-boundary noise than
+StDev; both are reported). A mask that somehow
 can't be measured (e.g. empty) is skipped with a printed warning — it won't abort the
 whole batch.
 
