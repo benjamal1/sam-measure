@@ -104,3 +104,42 @@ def test_clean_mask_folder_copies_already_clean_masks_verbatim_too(tmp_path):
 
     assert results == []  # nothing needed cleaning...
     assert (out_dir / "clean.png").exists()  # ...but it's still copied to out_dir
+
+
+def test_clean_mask_folder_removes_stale_out_dir_files_no_longer_in_source(tmp_path):
+    """Delete-a-mask-and-rerun safety: if a mask was removed from masks_dir (flagged for
+    redo), its stale leftover copy in out_dir must be deleted too — otherwise a deleted
+    mask's old measurements would keep lingering in out_dir forever."""
+    masks_dir = tmp_path / "masks"
+    masks_dir.mkdir()
+    out_dir = tmp_path / "masks_cleaned"
+    mask = np.zeros((120, 140), dtype=bool)
+    mask[50:70, 20:120] = True
+
+    Image.fromarray((mask.astype(np.uint8)) * 255).save(masks_dir / "keep.png")
+    Image.fromarray((mask.astype(np.uint8)) * 255).save(masks_dir / "to_delete.png")
+    clean_mask_folder(masks_dir, out_dir, dry_run=False)
+    assert (out_dir / "to_delete.png").exists()
+
+    (masks_dir / "to_delete.png").unlink()  # simulate "flagged for redo, deleted"
+
+    clean_mask_folder(masks_dir, out_dir, dry_run=False)
+
+    assert (out_dir / "keep.png").exists()
+    assert not (out_dir / "to_delete.png").exists()
+
+
+def test_clean_mask_folder_dry_run_never_removes_stale_files(tmp_path):
+    masks_dir = tmp_path / "masks"
+    masks_dir.mkdir()
+    out_dir = tmp_path / "masks_cleaned"
+    mask = np.zeros((120, 140), dtype=bool)
+    mask[50:70, 20:120] = True
+
+    Image.fromarray((mask.astype(np.uint8)) * 255).save(masks_dir / "to_delete.png")
+    clean_mask_folder(masks_dir, out_dir, dry_run=False)
+    (masks_dir / "to_delete.png").unlink()
+
+    clean_mask_folder(masks_dir, out_dir, dry_run=True)
+
+    assert (out_dir / "to_delete.png").exists()  # dry-run must not delete anything

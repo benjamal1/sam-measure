@@ -48,7 +48,12 @@ def clean_mask(mask: np.ndarray) -> tuple[np.ndarray, int]:
 def clean_mask_folder(masks_dir: Path, out_dir: Path, dry_run: bool = True) -> list[dict]:
     """Clean every *.png in masks_dir, writing ALL of them (cleaned or verbatim) to out_dir.
 
-    dry_run=True (default) reports what WOULD change and writes nothing at all — always
+    out_dir is treated as a MIRROR of masks_dir: any *.png in out_dir with no corresponding
+    file left in masks_dir is deleted too. This makes "delete a mask you want redone, then
+    rerun the pipeline" safe — without this, a removed mask's stale cleaned copy (and stale
+    row in measurements.csv) would linger forever even though the original is gone.
+
+    dry_run=True (default) reports what WOULD change and writes/deletes nothing — always
     inspect this before dry_run=False. Originals in masks_dir are never modified either way.
     """
     masks_dir = Path(masks_dir)
@@ -58,6 +63,8 @@ def clean_mask_folder(masks_dir: Path, out_dir: Path, dry_run: bool = True) -> l
     if not dry_run:
         out_dir.mkdir(parents=True, exist_ok=True)
 
+    current_names = {p.name for p in masks_dir.glob("*.png")}
+
     for mask_path in sorted(masks_dir.glob("*.png")):
         mask = np.array(Image.open(mask_path).convert("L")) > 127
         cleaned, removed = clean_mask(mask)
@@ -65,6 +72,12 @@ def clean_mask_folder(masks_dir: Path, out_dir: Path, dry_run: bool = True) -> l
             results.append({"file": mask_path.name, "pixels_removed": removed})
         if not dry_run:
             Image.fromarray((cleaned.astype(np.uint8)) * 255).save(out_dir / mask_path.name)
+
+    if not dry_run and out_dir.exists():
+        for stale in out_dir.glob("*.png"):
+            if stale.name not in current_names:
+                stale.unlink()
+                results.append({"file": stale.name, "pixels_removed": 0, "removed_stale": True})
 
     return results
 
@@ -88,15 +101,20 @@ def main() -> None:
         if not args.apply:
             return
 
-    for r in results:
+    cleaned_results = [r for r in results if not r.get("removed_stale")]
+    stale_results = [r for r in results if r.get("removed_stale")]
+
+    for r in cleaned_results:
         print(f"{'[dry-run] would clean' if not args.apply else 'cleaned'} {r['file']}: "
               f"removed {r['pixels_removed']} stray px")
+    for r in stale_results:
+        print(f"removed stale {r['file']} from {out_dir} (no longer in {args.masks_dir})")
 
     if args.apply:
-        print(f"\nwrote {total} mask(s) to {out_dir} ({len(results)} cleaned, "
-              f"{total - len(results)} copied verbatim)")
+        print(f"\nwrote {total} mask(s) to {out_dir} ({len(cleaned_results)} cleaned, "
+              f"{total - len(cleaned_results)} copied verbatim, {len(stale_results)} stale removed)")
     else:
-        print(f"\n{len(results)}/{total} mask(s) have stray blobs — "
+        print(f"\n{len(cleaned_results)}/{total} mask(s) have stray blobs — "
               f"rerun with --apply to write the cleaned copy to {out_dir}")
 
 

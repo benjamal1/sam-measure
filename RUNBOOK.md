@@ -158,13 +158,26 @@ run.
   batch, or an earlier date in the same batch, then rerun step 3 and 4.
 - **Ctrl+C crashes with an abort trap / crash report** — use `q` in the plot window instead
   (see above). Nothing is lost either way, but `q` doesn't crash.
-- **Need to redo one specific photo** — remove its line from `data/processed_photos.json`
-  (plain JSON list of file paths, one per line) so its window reopens on the next run,
-  everything else still skips as usual. If you also want the mask itself redone (not just
-  the window reopened — e.g. it was mislabeled or the segmentation was bad), also delete
-  that thread's existing `data/masks/<stem>.png` and `data/qc/<stem>_overlay.png` — otherwise
-  accepting it again just gets silently skipped since a mask with that exact stem already
-  exists. `--force` is the blunt alternative: reprocesses EVERY photo in the run, not just one.
+- **Need to redo one specific thread/photo** — use the helper script instead of editing
+  `processed_photos.json` by hand:
+
+  ```bash
+  PYTHONPATH=src .venv/bin/python scripts/flag_for_redo.py \
+    --stem 2025-11-14_batch4_poststretch_threadLH \
+    --photo "/path/to/the/original/photo.JPG"
+  ```
+
+  (repeat `--stem` for multiple threads on the same composite photo). Deletes that thread's
+  mask + QC overlay and unmarks the photo in `data/processed_photos.json`, so its window
+  reopens on the next segment run while every other already-done photo still skips. Safe to
+  rerun — no-ops cleanly if the mask or photo entry is already gone.
+
+  Nothing else needs manual cleanup: `cleanup_masks.py --apply` mirrors `data/masks_cleaned/`
+  to whatever's currently in `data/masks/` (removes stale entries for anything you deleted),
+  and `measure_masks`/`build_final_csv` regenerate their CSVs from scratch every run — so as
+  long as you rerun the later steps after re-segmenting, the redone thread's old numbers
+  disappear on their own. `--force` on `segment_export` is the blunt alternative: reprocesses
+  EVERY photo in the run, not just one.
 
 ## Speed
 
