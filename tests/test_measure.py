@@ -14,6 +14,20 @@ def test_measure_mask_strip_returns_known_area_and_width(synthetic_strip_mask):
     assert result["stdev_px"] == pytest.approx(0.0, abs=1.0)
 
 
+def test_measure_mask_returns_finite_nonnegative_mad_px(synthetic_strip_mask):
+    result = measure_mask(synthetic_strip_mask)
+
+    assert "mad_px" in result
+    assert result["mad_px"] >= 0.0
+    assert np.isfinite(result["mad_px"])
+
+
+def test_measure_mask_does_not_remove_or_reorder_existing_keys(synthetic_strip_mask):
+    result = measure_mask(synthetic_strip_mask)
+
+    assert set(result.keys()) == {"area_px", "avg_diameter_px", "stdev_px", "mad_px"}
+
+
 def test_measure_mask_empty_raises_value_error():
     empty = np.zeros((50, 50), dtype=bool)
 
@@ -76,10 +90,11 @@ def test_measure_folder_writes_schema_exact_csv(tmp_path):
     written = pd.read_csv(out_csv)
     assert list(written.columns) == [
         "source_path", "date", "batch", "condition", "thread",
-        "area_px", "avg_diameter_px", "stdev_px",
+        "area_px", "avg_diameter_px", "stdev_px", "mad_px",
     ]
     assert len(written) == 2
     assert (written["area_px"] > 0).all()
     assert (written["avg_diameter_px"] > 0).all()
+    assert (written["mad_px"] >= 0).all()
     assert set(written["date"]) == {"2026-05-11", "2025-08-03"}
     assert len(df) == 2

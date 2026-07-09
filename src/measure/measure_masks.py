@@ -24,7 +24,7 @@ from segment.naming import stem_to_fields
 
 _CSV_COLUMNS = [
     "source_path", "date", "batch", "condition", "thread",
-    "area_px", "avg_diameter_px", "stdev_px",
+    "area_px", "avg_diameter_px", "stdev_px", "mad_px",
 ]
 
 
@@ -67,8 +67,15 @@ def measure_mask(mask: np.ndarray, endpoint_trim_px: int = 5) -> dict:
 
     avg_diameter_px = float(np.mean(trimmed))
     stdev_px = float(np.std(trimmed, ddof=1)) if len(trimmed) > 1 else 0.0
+    # Median absolute deviation: more robust to SAM2's jagged mask-boundary noise than
+    # stdev (Phase-2 VALIDATION finding of ~30% stdev overshoot) — additive, does not
+    # replace avg_diameter_px/stdev_px.
+    mad_px = float(np.median(np.abs(trimmed - np.median(trimmed))))
 
-    return {"area_px": area_px, "avg_diameter_px": avg_diameter_px, "stdev_px": stdev_px}
+    return {
+        "area_px": area_px, "avg_diameter_px": avg_diameter_px, "stdev_px": stdev_px,
+        "mad_px": mad_px,
+    }
 
 
 def measure_folder(masks_dir: Path, out_csv: Path) -> pd.DataFrame:
@@ -93,6 +100,7 @@ def measure_folder(masks_dir: Path, out_csv: Path) -> pd.DataFrame:
             "area_px": measured["area_px"],
             "avg_diameter_px": measured["avg_diameter_px"],
             "stdev_px": measured["stdev_px"],
+            "mad_px": measured["mad_px"],
         })
 
     df = pd.DataFrame(rows, columns=_CSV_COLUMNS)
