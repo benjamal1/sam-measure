@@ -145,7 +145,10 @@ def test_happy_path_multi_thread_still_writes(tmp_path):
     df = build_final_csv(measurements_csv, calibration_csv, output_csv)
 
     assert len(df) == 2
-    assert list(df.columns) == EXACT_R_SCRIPT_COLUMNS
+    # Plan 02-04/Task 6: EXACT_R_SCRIPT_COLUMNS (the frozen R-facing contract) must still be
+    # the first N columns in unchanged order — area/MAD/outlier columns are appended AFTER,
+    # never inserted/reordered, so this is a prefix check rather than a strict equality.
+    assert list(df.columns[: len(EXACT_R_SCRIPT_COLUMNS)]) == EXACT_R_SCRIPT_COLUMNS
     header_line = output_csv.read_text().splitlines()[0]
-    assert header_line == EXACT_HEADER
+    assert header_line.startswith(EXACT_HEADER + ",")
     assert output_csv.exists()
