@@ -4,7 +4,7 @@ matplotlib.use("Agg")  # noqa: E402 — headless, must precede any pyplot import
 import pandas as pd
 import pytest
 
-from calibrate.ruler_scale import px_per_cm, write_calibration_csv
+from calibrate.ruler_scale import px_per_cm, resolve_calibration_factor, write_calibration_csv
 
 
 def test_px_per_cm_known_distance():
@@ -35,3 +35,49 @@ def test_calibrate_folder_two_sessions_two_distinct_rows(tmp_path):
     assert len(df) == 2
     assert set(df["date"]) == {"2025-08-03", "2026-05-11"}
     assert len(set(df["px_per_cm"])) == 2
+
+
+# --- Task 3: resolve_calibration_factor (CAL-02 same-batch date-fallback) -----------------
+
+
+_ROWS = [
+    {"date": "2026-04-24", "batch": "8", "px_per_cm": 7000.0, "ruler_source_path": "r1.jpg"},
+    {"date": "2026-05-01", "batch": "8", "px_per_cm": 7200.0, "ruler_source_path": "r2.jpg"},
+    {"date": "2026-05-11", "batch": "8", "px_per_cm": 7500.0, "ruler_source_path": "r3.jpg"},
+    # A DIFFERENT batch with a row closer in date than batch 8's own fallback candidates —
+    # must never be selected over the same-batch fallback.
+    {"date": "2026-05-10", "batch": "9", "px_per_cm": 9999.0, "ruler_source_path": "r4.jpg"},
+]
+
+
+def test_resolve_calibration_factor_prefers_exact_date_batch_match():
+    factor = resolve_calibration_factor(_ROWS, date="2026-05-11", batch="8")
+
+    assert factor == pytest.approx(7500.0)
+
+
+def test_resolve_calibration_factor_falls_back_to_closest_earlier_same_batch_date():
+    # No row for 2026-05-15/batch 8 — nearest earlier same-batch date is 2026-05-11.
+    factor = resolve_calibration_factor(_ROWS, date="2026-05-15", batch="8")
+
+    assert factor == pytest.approx(7500.0)
+
+
+def test_resolve_calibration_factor_never_crosses_batches_even_when_closer_in_date():
+    # 2026-05-10/batch 9 is closer in date than any batch-8 row, but must never be chosen —
+    # the correct answer is batch 8's own most-recent EARLIER row (2026-05-01).
+    factor = resolve_calibration_factor(_ROWS, date="2026-05-10", batch="8")
+
+    assert factor == pytest.approx(7200.0)
+
+
+def test_resolve_calibration_factor_returns_none_when_no_same_batch_row_at_or_before_date():
+    factor = resolve_calibration_factor(_ROWS, date="2026-04-01", batch="8")
+
+    assert factor is None
+
+
+def test_resolve_calibration_factor_returns_none_for_unknown_batch():
+    factor = resolve_calibration_factor(_ROWS, date="2026-05-11", batch="99")
+
+    assert factor is None

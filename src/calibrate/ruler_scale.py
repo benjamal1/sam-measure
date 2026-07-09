@@ -4,14 +4,16 @@ D-10: ruler photos are macro/microscope shots — the default known span is 0-0.
 using fine mm tick marks, NOT a wide 0-10cm span. CAL-02: calibration is stored per
 (date, batch) session, never as one global constant.
 
-Pure math (px_per_cm, write_calibration_csv) is split from the interactive ginput
-collection (calibrate_ruler) so the pure layer is unit-testable without a display.
-The interactive path is validated by hand on the Mac, not in this build session.
+Pure math (px_per_cm, write_calibration_csv, resolve_calibration_factor) is split from
+the interactive ginput collection (calibrate_ruler) so the pure layer is unit-testable
+without a display. The interactive path is validated by hand on the Mac, not in this
+build session.
 """
 from __future__ import annotations
 
 import argparse
 import math
+from datetime import date as _date
 from pathlib import Path
 
 import pandas as pd
@@ -21,6 +23,29 @@ from segment.naming import parse_flat_path, parse_photo_path
 _CALIBRATION_COLUMNS = ["date", "batch", "px_per_cm", "ruler_source_path"]
 
 DEFAULT_KNOWN_CM_SPAN = 0.5  # D-10: macro ruler, 0-0.5cm span with fine mm ticks
+
+
+def resolve_calibration_factor(calibration_rows: list[dict], date: str, batch: str) -> float | None:
+    """Exact (date,batch) match first; else the closest EARLIER-dated row within the SAME
+    batch; else None (caller hard-fails per the existing CAL-03 unmatched-session guard).
+
+    Never matches across batches, even if a different-batch row is closer in date — a
+    same-date different-batch row is not a fallback candidate (CAL-02: per-session, never
+    global; batches may have different camera/lighting setups per user confirmation).
+    """
+    target_date = _date.fromisoformat(date)
+    same_batch = [row for row in calibration_rows if str(row.get("batch", "")) == str(batch)]
+
+    for row in same_batch:
+        if row["date"] == date:
+            return float(row["px_per_cm"])
+
+    earlier = [row for row in same_batch if _date.fromisoformat(row["date"]) < target_date]
+    if not earlier:
+        return None
+
+    best = max(earlier, key=lambda row: _date.fromisoformat(row["date"]))
+    return float(best["px_per_cm"])
 
 
 def px_per_cm(p1: tuple[float, float], p2: tuple[float, float], known_cm_span: float) -> float:
