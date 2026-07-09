@@ -18,6 +18,7 @@ from datetime import date
 from pathlib import Path
 
 _BATCH_RE = re.compile(r"^Batch\s+(?P<batch>\d+)\s+(?P<mm>\d{2})-(?P<dd>\d{2})-(?P<yy>\d{2})$", re.IGNORECASE)
+_BATCH_NO_DATE_RE = re.compile(r"^Batch\s+(?P<batch>\d+)$", re.IGNORECASE)
 _CONDITION_RE = re.compile(r"^(Pre|Post)[Ss]tretch$")
 _DAY_RE = re.compile(r"^D(?P<day>\d+)\s+(?P<mm>\d{2})-(?P<dd>\d{2})-(?P<yy>\d{2})$", re.IGNORECASE)
 _FLAT_DATE_RE = re.compile(r"^(?P<mm>\d{2})-(?P<dd>\d{2})-(?P<yy>\d{2})$")
@@ -103,6 +104,48 @@ def parse_flat_path(photo_path: Path) -> PhotoMetadata:
         day="",
         date=_to_date(m.group("mm"), m.group("dd"), m.group("yy")),
         thread=photo_path.stem,
+        source_path=photo_path,
+    )
+
+
+def parse_lenient_path(photo_path: Path) -> PhotoMetadata:
+    """Best-effort scan of ANY ancestor folder names for a Batch N.../D# MM-DD-YY segment.
+
+    Unlike parse_photo_path, does not require a nextcloud_root or a Condition folder level —
+    covers curated subtrees (e.g. a "For analysis" pick-list) that keep the Batch/Day naming
+    but drop the Condition level. condition/thread are left None (EXPT-01: prompted, not
+    guessed) when not determinable. Raises only when no day-folder date can be found at all,
+    since PhotoMetadata.date is mandatory.
+    """
+    batch = None
+    day = None
+    day_date = None
+
+    for part in photo_path.parts[:-1]:  # last part is the filename
+        m = _BATCH_RE.match(part)
+        if m:
+            batch = m.group("batch")
+            continue
+        m = _BATCH_NO_DATE_RE.match(part)
+        if m:
+            batch = m.group("batch")
+            continue
+        m = _DAY_RE.match(part)
+        if m:
+            day = m.group("day")
+            day_date = _to_date(m.group("mm"), m.group("dd"), m.group("yy"))
+            continue
+
+    if day_date is None:
+        raise ValueError(f"could not find a D# MM-DD-YY day folder anywhere in path: {photo_path}")
+
+    return PhotoMetadata(
+        batch=batch or "",
+        batch_start_date=None,
+        condition=None,
+        day=day or "",
+        date=day_date,
+        thread=None,
         source_path=photo_path,
     )
 

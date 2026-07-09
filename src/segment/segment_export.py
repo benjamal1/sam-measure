@@ -25,20 +25,39 @@ from pathlib import Path
 from pipeline.manifest import add_output, new_manifest, write_manifest
 from segment.click_loop import run_click_loop
 from segment.export import export_mask
-from segment.naming import canonical_stem, parse_flat_path, parse_photo_path
+from segment.naming import canonical_stem, parse_flat_path, parse_lenient_path, parse_photo_path
 from segment.sam2_session import load_predictor
 
 _VALID_THREAD_RE = re.compile(r"^[^_/\\\s]+$")
 
 
 def _derive_metadata(photo_path: Path, nextcloud_root: Path | None, date: str | None, condition: str | None):
-    """Best-effort path-parsed guess — advisory only (EXPT-01 revised), never authoritative."""
+    """Best-effort path-parsed guess — advisory only (EXPT-01 revised), never authoritative.
+
+    Tries, in order: nextcloud_root-relative Batch/Condition/Day, legacy flat MM-DD-YY,
+    then a lenient any-ancestor Batch/Day scan (no Condition level required). Never raises —
+    falls back to an all-unknown guess (condition/thread=None, today-less date left to the
+    caller's --date override) only if every strategy fails, so a crashed run never happens
+    just because a photo's folder doesn't match any known convention.
+    """
     if nextcloud_root:
         try:
             return parse_photo_path(photo_path, nextcloud_root)
         except ValueError:
             pass
-    return parse_flat_path(photo_path)
+    try:
+        return parse_flat_path(photo_path)
+    except ValueError:
+        pass
+    try:
+        return parse_lenient_path(photo_path)
+    except ValueError:
+        pass
+    raise ValueError(
+        f"could not derive any date/batch metadata from path: {photo_path} — "
+        "pass --nextcloud-root, or ensure a 'D# MM-DD-YY' day folder is somewhere in its path, "
+        "or pass --date explicitly."
+    )
 
 
 def _prompt_safe_identifier(label: str, photo_name: str, guess: str | None) -> str:
