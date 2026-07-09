@@ -53,6 +53,7 @@ def test_export_folder_recursively_discovers_nested_tree_and_skips_ruler(data_ro
         nextcloud_root=data_root.parent / "input",
         condition="PreStretch",
         prompt_thread=_thread_by_name,
+        prompt_more_threads=lambda name: False,
     )
 
     # 2 distinct thread photos processed (ruler_*/Ruler_* excluded regardless of case).
@@ -135,6 +136,54 @@ def test_export_folder_flat_legacy_thread_guess_used_without_prompting_when_no_o
 
     assert len(seen) == 1
     assert "thread5.11" in manifest["outputs"][0]["stem"]
+
+
+def test_on_accept_supports_multiple_masks_per_photo_via_click_loop_return_contract(data_root):
+    """A nested-tree photo with no thread guess: two accepts on the same photo (simulated by
+    a fake click_loop that calls on_accept twice, honoring its reclick-vs-advance return
+    value like the real click_loop does) must produce two independent, distinctly-stemmed
+    masks — not a collision or a silent overwrite."""
+    tree_root = data_root.parent / "input"
+    root = tree_root / "PreStretch" / "Batch 8 04-24-26" / "D1 04-25-26"
+    photo = root / "IMG_0001.JPG"
+    _write_photo(photo)
+
+    thread_values = ["01", "02"]
+    accept_count = {"n": 0}
+
+    def _next_thread(name, guess):
+        value = thread_values[accept_count["n"]]
+        return value
+
+    def _more_threads(name):
+        # Reclick after the first accept, advance after the second.
+        return accept_count["n"] == 0
+
+    def _two_accept_click_loop(predictor, image_rgb, on_accept):
+        for i in range(2):
+            accept_count["n"] = i
+            mask = np.zeros(image_rgb.shape[:2], dtype=bool)
+            mask[2:5, 2:5] = True
+            advance = on_accept(mask)
+            if advance:
+                break
+
+    manifest = export_folder(
+        input_dir=root,
+        masks_dir=data_root / "masks",
+        qc_dir=data_root / "qc",
+        predictor=None,
+        click_loop=_two_accept_click_loop,
+        nextcloud_root=tree_root,
+        condition="PreStretch",
+        prompt_thread=_next_thread,
+        prompt_more_threads=_more_threads,
+    )
+
+    stems = [o["stem"] for o in manifest["outputs"]]
+    assert len(stems) == 2
+    assert len(set(stems)) == 2, "two masks on one photo must not collide on the same stem"
+    assert all(o["action"] == "written" for o in manifest["outputs"])
 
 
 def test_export_folder_skip_already_exported_still_works_over_recursive_tree(data_root):
