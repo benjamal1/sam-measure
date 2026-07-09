@@ -109,15 +109,19 @@ def parse_flat_path(photo_path: Path) -> PhotoMetadata:
 
 
 def parse_lenient_path(photo_path: Path) -> PhotoMetadata:
-    """Best-effort scan of ANY ancestor folder names for a Batch N.../D# MM-DD-YY segment.
+    """Best-effort scan of ANY ancestor folder names for Batch/Condition/D# MM-DD-YY segments,
+    IN ANY ORDER (unlike parse_photo_path, which requires the strict Batch/Condition/Day
+    nesting order).
 
-    Unlike parse_photo_path, does not require a nextcloud_root or a Condition folder level —
-    covers curated subtrees (e.g. a "For analysis" pick-list) that keep the Batch/Day naming
-    but drop the Condition level. condition/thread are left None (EXPT-01: prompted, not
-    guessed) when not determinable. Raises only when no day-folder date can be found at all,
-    since PhotoMetadata.date is mandatory.
+    Covers curated subtrees (e.g. a "For analysis" pick-list, possibly with Condition ABOVE
+    Batch rather than between Batch and Day) without requiring a nextcloud_root. condition is
+    left None (EXPT-01: prompted, not guessed) only when no Pre/PostStretch segment is found
+    anywhere in the path; thread is always left None (composite multi-thread photos can't be
+    guessed). Raises only when no day-folder date can be found at all, since PhotoMetadata.date
+    is mandatory.
     """
     batch = None
+    condition = None
     day = None
     day_date = None
 
@@ -129,6 +133,9 @@ def parse_lenient_path(photo_path: Path) -> PhotoMetadata:
         m = _BATCH_NO_DATE_RE.match(part)
         if m:
             batch = m.group("batch")
+            continue
+        if _CONDITION_RE.match(part):
+            condition = part
             continue
         m = _DAY_RE.match(part)
         if m:
@@ -142,7 +149,7 @@ def parse_lenient_path(photo_path: Path) -> PhotoMetadata:
     return PhotoMetadata(
         batch=batch or "",
         batch_start_date=None,
-        condition=None,
+        condition=condition,
         day=day or "",
         date=day_date,
         thread=None,
