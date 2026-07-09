@@ -231,12 +231,12 @@ def run_click_loop(
     """
     import matplotlib
 
-    # Prefer TkAgg over the default macosx backend: macosx has a known flaky window-close
-    # behavior when plt.show()/plt.close() cycle repeatedly within one process (observed:
-    # stale windows piling up across photos in a session). Best-effort — falls back to
-    # whatever's already active (e.g. macosx, or Agg under the test suite) if TkAgg/Tk isn't
-    # available, rather than crashing the whole run over a cosmetic backend preference.
-    if matplotlib.get_backend().lower() not in ("tkagg", "agg"):
+    # Prefer TkAgg over the default macosx backend specifically: macosx has a known flaky
+    # window-close behavior when plt.show()/plt.close() cycle repeatedly within one process
+    # (observed: stale windows piling up across photos in a session). Only overrides macosx —
+    # any OTHER explicit backend choice (e.g. MPLBACKEND=WebAgg for viewing over SSH in a
+    # browser, no XQuartz needed) must be respected, not silently clobbered back to TkAgg.
+    if matplotlib.get_backend().lower() == "macosx":
         try:
             matplotlib.use("TkAgg")
         except Exception:

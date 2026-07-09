@@ -203,6 +203,41 @@ PYTHONPATH=src .venv/bin/python -m segment.segment_export \
   --model-cfg configs/sam2.1/sam2.1_hiera_t.yaml
 ```
 
+Have real GPU compute available (e.g. a lab machine)? Go the other way — use the largest,
+most accurate checkpoint instead, since the speed/accuracy tradeoff only mattered when
+compute was the bottleneck:
+
+```bash
+curl -L -o vendor/sam2/checkpoints/sam2.1_hiera_large.pt \
+  https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
+
+CUDA_VISIBLE_DEVICES=0 PYTHONPATH=src .venv/bin/python -m segment.segment_export \
+  --input-dir "/path/to/your/photos" \
+  --checkpoint vendor/sam2/checkpoints/sam2.1_hiera_large.pt \
+  --model-cfg configs/sam2.1/sam2.1_hiera_l.yaml
+```
+
+## Running over SSH on a remote GPU machine — seeing the click window
+
+Plain `ssh` never forwards a display — the click window would fail to open, or (if the
+remote machine has its own monitor) open there instead of on your laptop.
+
+**Best option: matplotlib's WebAgg backend** — serves the plot over HTTP instead of a
+native window, viewable in an ordinary browser tab. No XQuartz, and it's built for network
+latency (websocket updates) rather than X11's per-pixel round-trips:
+
+```bash
+MPLBACKEND=WebAgg PYTHONPATH=src .venv/bin/python -m segment.segment_export --input-dir ...
+```
+
+It'll print a `http://127.0.0.1:8988/` URL — forward that port (`ssh -L 8988:localhost:8988
+user@host`, or let VS Code Remote-SSH auto-forward it) and open it in a browser on your
+laptop. Clicks, keys, and scroll all work through the browser.
+
+Alternative: X11 forwarding (`ssh -X`/`-Y` + XQuartz on macOS) also works, but tends to be
+laggier for image-heavy redraws (erase-box drag, zoom) since every pixel round-trips instead
+of just the websocket deltas WebAgg sends.
+
 ## Tests
 
 ```bash
