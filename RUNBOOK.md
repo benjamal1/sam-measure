@@ -132,7 +132,8 @@ PYTHONPATH=src .venv/bin/python -m join.build_final_csv
 
 Joins `measurements.csv` + `calibration.csv` into `data/csv/final.csv`, in the exact
 column order your R script expects, plus extra columns after them: `area_px`, `area_mm2`,
-`mad_px`, `mad_mm`, `flag`, `flag_reason`.
+`mad_px`, `mad_mm`, `flag`, `flag_reason`, `calibration_date`, `calibration_source`,
+`ruler_source_path`.
 
 **Hard-fails loudly** (no partial/stale `final.csv` written) if any thread's session has
 no resolvable calibration (exact or same-batch fallback) — the error names the exact
@@ -142,6 +143,12 @@ session and thread so you know what to fix (missing ruler photo, wrong date, etc
 compared to its own same-date/batch/condition siblings gets flagged — worth a glance at
 its `data/qc/` overlay to check for a mislabel, but it's advisory only, never blocks the
 run.
+
+**`calibration_date`/`calibration_source`/`ruler_source_path`**: which ruler actually
+calibrated this row — `calibration_date` can differ from the thread's own `Date` when the
+same-batch fallback kicked in (no ruler for that exact day), and `calibration_source` is
+`exact` or `fallback` so you can tell at a glance. `ruler_source_path` points at the actual
+ruler photo used, for full traceability.
 
 ## Troubleshooting
 

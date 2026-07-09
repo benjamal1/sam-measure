@@ -9,7 +9,10 @@ EXACT_HEADER = (
 )
 
 # The 6 columns Task 6 appends after EXACT_R_SCRIPT_COLUMNS — order matters (plan-specified).
-NEW_APPENDED_COLUMNS = ["area_px", "area_mm2", "mad_px", "mad_mm", "flag", "flag_reason"]
+NEW_APPENDED_COLUMNS = [
+    "area_px", "area_mm2", "mad_px", "mad_mm", "flag", "flag_reason",
+    "calibration_date", "calibration_source", "ruler_source_path",
+]
 
 
 def _write_measurements(path, rows):
@@ -130,6 +133,32 @@ def test_build_final_csv_uses_same_batch_earlier_date_fallback_when_no_exact_mat
     assert len(df) == 1
     assert df.iloc[0]["Conversion (pixels/cm)"] == pytest.approx(7000.0)
     assert df.iloc[0]["AvgDiameter(mm)"] == pytest.approx(632.0 / 7000.0 * 10)
+    # Traceability: the thread's own date (2026-05-11) differs from the ruler that actually
+    # calibrated it (2026-05-01) — this must be visible in the output, not silently hidden.
+    assert df.iloc[0]["calibration_date"] == "2026-05-01"
+    assert df.iloc[0]["calibration_source"] == "fallback"
+    assert df.iloc[0]["ruler_source_path"] == "ruler_earlier.jpg"
+
+
+def test_build_final_csv_records_exact_calibration_match_as_exact_not_fallback(tmp_path):
+    measurements_csv = tmp_path / "measurements.csv"
+    calibration_csv = tmp_path / "calibration.csv"
+    output_csv = tmp_path / "final.csv"
+
+    _write_measurements(measurements_csv, [{
+        "source_path": "x.jpg", "date": "2025-08-03", "batch": "", "condition": "",
+        "thread": "5.11", "area_px": 12000, "avg_diameter_px": 632.0, "stdev_px": 89.0,
+        "mad_px": 40.0,
+    }])
+    _write_calibration(calibration_csv, [{
+        "date": "2025-08-03", "batch": "", "px_per_cm": 8000.0, "ruler_source_path": "ruler.jpg",
+    }])
+
+    df = build_final_csv(measurements_csv, calibration_csv, output_csv)
+
+    assert df.iloc[0]["calibration_date"] == "2025-08-03"
+    assert df.iloc[0]["calibration_source"] == "exact"
+    assert df.iloc[0]["ruler_source_path"] == "ruler.jpg"
 
 
 def test_build_final_csv_never_falls_back_across_batches(tmp_path):

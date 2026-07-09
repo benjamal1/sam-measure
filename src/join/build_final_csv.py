@@ -22,7 +22,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from calibrate.ruler_scale import resolve_calibration_factor
+from calibrate.ruler_scale import resolve_calibration_detailed
 from validate.outliers import flag_outliers
 
 EXACT_R_SCRIPT_COLUMNS = [
@@ -31,7 +31,10 @@ EXACT_R_SCRIPT_COLUMNS = [
 ]
 
 # Task 6: appended AFTER EXACT_R_SCRIPT_COLUMNS, this exact order, never inserted/reordered.
-_APPENDED_COLUMNS = ["area_px", "area_mm2", "mad_px", "mad_mm", "flag", "flag_reason"]
+_APPENDED_COLUMNS = [
+    "area_px", "area_mm2", "mad_px", "mad_mm", "flag", "flag_reason",
+    "calibration_date", "calibration_source", "ruler_source_path",
+]
 
 CALIBRATION_COLUMNS = ["date", "batch", "px_per_cm", "ruler_source_path"]
 
@@ -86,12 +89,20 @@ def build_final_csv(measurements_csv: Path, calibration_csv: Path, output_csv: P
     # Task 3: date-fallback-within-batch calibration resolution replaces the flat
     # exact-match merge. Resolved row-wise since each measurement row may need a
     # DIFFERENT calibration row (its own session's exact match or same-batch fallback).
+    # Captures which ruler date/source was actually used and whether it was a fallback —
+    # a thread's own date can silently differ from the ruler date that calibrated it.
     calibration_rows = calibration.to_dict("records")
     merged = measurements.copy()
-    merged["px_per_cm"] = pd.to_numeric(merged.apply(
-        lambda row: resolve_calibration_factor(calibration_rows, date=row["date"], batch=row["batch"]),
+    resolved = merged.apply(
+        lambda row: resolve_calibration_detailed(calibration_rows, date=row["date"], batch=row["batch"]),
         axis=1,
-    ))
+    )
+    merged["px_per_cm"] = pd.to_numeric(resolved.apply(lambda d: d["px_per_cm"] if d else None))
+    merged["calibration_date"] = resolved.apply(lambda d: d["calibration_date"] if d else "")
+    merged["calibration_source"] = resolved.apply(
+        lambda d: ("fallback" if d["is_fallback"] else "exact") if d else ""
+    )
+    merged["ruler_source_path"] = resolved.apply(lambda d: d["ruler_source_path"] if d else "")
 
     unmatched = merged[merged["px_per_cm"].isna()]
     if not unmatched.empty:

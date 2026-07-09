@@ -4,7 +4,10 @@ matplotlib.use("Agg")  # noqa: E402 — headless, must precede any pyplot import
 import pandas as pd
 import pytest
 
-from calibrate.ruler_scale import _discover_ruler_photos, px_per_cm, resolve_calibration_factor, write_calibration_csv
+from calibrate.ruler_scale import (
+    _discover_ruler_photos, px_per_cm, resolve_calibration_detailed, resolve_calibration_factor,
+    write_calibration_csv,
+)
 
 
 def test_px_per_cm_known_distance():
@@ -118,3 +121,28 @@ def test_discover_ruler_photos_case_insensitive_prefix_and_suffix(tmp_path):
     found = _discover_ruler_photos(tmp_path)
 
     assert len(found) == 1
+
+
+# --- resolve_calibration_detailed: same resolution, plus traceability -----------------------
+
+
+def test_resolve_calibration_detailed_exact_match_reports_source_not_fallback():
+    detailed = resolve_calibration_detailed(_ROWS, date="2026-05-11", batch="8")
+
+    assert detailed["px_per_cm"] == pytest.approx(7500.0)
+    assert detailed["calibration_date"] == "2026-05-11"
+    assert detailed["is_fallback"] is False
+    assert detailed["ruler_source_path"] == "r3.jpg"
+
+
+def test_resolve_calibration_detailed_fallback_reports_the_date_actually_used():
+    detailed = resolve_calibration_detailed(_ROWS, date="2026-05-15", batch="8")
+
+    assert detailed["px_per_cm"] == pytest.approx(7500.0)
+    assert detailed["calibration_date"] == "2026-05-11"  # NOT 2026-05-15 — the fallback date
+    assert detailed["is_fallback"] is True
+    assert detailed["ruler_source_path"] == "r3.jpg"
+
+
+def test_resolve_calibration_detailed_returns_none_when_unresolvable():
+    assert resolve_calibration_detailed(_ROWS, date="2020-01-01", batch="8") is None

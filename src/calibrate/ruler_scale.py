@@ -25,27 +25,45 @@ _CALIBRATION_COLUMNS = ["date", "batch", "px_per_cm", "ruler_source_path"]
 DEFAULT_KNOWN_CM_SPAN = 0.5  # D-10: macro ruler, 0-0.5cm span with fine mm ticks
 
 
-def resolve_calibration_factor(calibration_rows: list[dict], date: str, batch: str) -> float | None:
+def resolve_calibration_detailed(calibration_rows: list[dict], date: str, batch: str) -> dict | None:
     """Exact (date,batch) match first; else the closest EARLIER-dated row within the SAME
     batch; else None (caller hard-fails per the existing CAL-03 unmatched-session guard).
 
     Never matches across batches, even if a different-batch row is closer in date — a
     same-date different-batch row is not a fallback candidate (CAL-02: per-session, never
     global; batches may have different camera/lighting setups per user confirmation).
+
+    Returns full traceability, not just the factor: which ruler DATE and source photo were
+    actually used, and whether it was an exact match or a same-batch fallback — a thread's
+    own date can silently differ from the ruler date that calibrated it, and that was
+    previously invisible in the output.
     """
     target_date = _date.fromisoformat(date)
     same_batch = [row for row in calibration_rows if str(row.get("batch", "")) == str(batch)]
 
     for row in same_batch:
         if row["date"] == date:
-            return float(row["px_per_cm"])
+            return {
+                "px_per_cm": float(row["px_per_cm"]), "calibration_date": row["date"],
+                "is_fallback": False, "ruler_source_path": row.get("ruler_source_path", ""),
+            }
 
     earlier = [row for row in same_batch if _date.fromisoformat(row["date"]) < target_date]
     if not earlier:
         return None
 
     best = max(earlier, key=lambda row: _date.fromisoformat(row["date"]))
-    return float(best["px_per_cm"])
+    return {
+        "px_per_cm": float(best["px_per_cm"]), "calibration_date": best["date"],
+        "is_fallback": True, "ruler_source_path": best.get("ruler_source_path", ""),
+    }
+
+
+def resolve_calibration_factor(calibration_rows: list[dict], date: str, batch: str) -> float | None:
+    """Just the factor — thin wrapper over resolve_calibration_detailed for callers (and
+    existing tests) that only need px_per_cm, not the full traceability info."""
+    detailed = resolve_calibration_detailed(calibration_rows, date, batch)
+    return detailed["px_per_cm"] if detailed is not None else None
 
 
 def px_per_cm(p1: tuple[float, float], p2: tuple[float, float], known_cm_span: float) -> float:
