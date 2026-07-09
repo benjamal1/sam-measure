@@ -307,9 +307,26 @@ def run_click_loop(
     # old approach did ax.clear() + a fresh imshow(image_rgb) on every single interaction,
     # which for a large macro photo re-sends the FULL image over WebAgg's websocket every
     # time — unrelated to SAM2 (SAM2 only runs on an actual click, never on accept/label/erase).
-    ax.imshow(image_rgb)
-    _overlay_rgba = np.zeros((*image_rgb.shape[:2], 4))
-    overlay_artist = ax.imshow(_overlay_rgba)
+    #
+    # Every-interaction lag (confirmed local, not network): matplotlib's Agg rasterizer
+    # resamples the imshow source array on EVERY draw() regardless of how much actually
+    # changed, and that resample cost scales with the SOURCE array's pixel count, not just
+    # the on-screen output size — a full-res macro photo (multi-megapixel) costs real time
+    # to rasterize even though nothing about the base photo changed. SAM2 always gets the
+    # untouched full-res `image_rgb` (state.image_rgb, accuracy unaffected — SAM2 internally
+    # resizes to its own fixed input size regardless of what's fed in); only the ON-SCREEN
+    # copy is downsampled, via cheap strided slicing (no interpolation cost). `extent` pins
+    # the displayed array's data-coordinates to the FULL-RES pixel grid, so event.xdata/ydata
+    # (read by handle_click/handle_release, fed straight into predict_fn and erase_box) come
+    # out in full-res coordinates automatically — no separate coordinate-scaling code needed.
+    _MAX_DISPLAY_DIM = 1200
+    _factor = max(1, max(image_rgb.shape[:2]) // _MAX_DISPLAY_DIM)
+    _full_h, _full_w = image_rgb.shape[:2]
+    _extent = (0, _full_w, _full_h, 0)
+    display_image = image_rgb[::_factor, ::_factor]
+    ax.imshow(display_image, extent=_extent)
+    _overlay_rgba = np.zeros((*display_image.shape[:2], 4))
+    overlay_artist = ax.imshow(_overlay_rgba, extent=_extent)
     drag_rect = {"patch": mpatches.Rectangle(
         (0, 0), 0, 0, edgecolor="yellow", facecolor="none", linewidth=1.5, visible=False,
     )}
@@ -317,8 +334,9 @@ def run_click_loop(
 
     def _update_overlay():
         if state.current_mask is not None:
+            downsampled_mask = state.current_mask[::_factor, ::_factor]
             _overlay_rgba[..., 3] = 0
-            _overlay_rgba[state.current_mask] = [1, 0, 0, 0.4]
+            _overlay_rgba[downsampled_mask] = [1, 0, 0, 0.4]
             overlay_artist.set_data(_overlay_rgba)
         else:
             _overlay_rgba[..., 3] = 0
