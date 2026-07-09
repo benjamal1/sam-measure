@@ -140,6 +140,19 @@ def run_click_loop(
     `photo_path` (optional): sets the OS window title to the full file path — matplotlib's
     default "Figure 1" title otherwise gives no clue which photo is open.
     """
+    import matplotlib
+
+    # Prefer TkAgg over the default macosx backend: macosx has a known flaky window-close
+    # behavior when plt.show()/plt.close() cycle repeatedly within one process (observed:
+    # stale windows piling up across photos in a session). Best-effort — falls back to
+    # whatever's already active (e.g. macosx, or Agg under the test suite) if TkAgg/Tk isn't
+    # available, rather than crashing the whole run over a cosmetic backend preference.
+    if matplotlib.get_backend().lower() not in ("tkagg", "agg"):
+        try:
+            matplotlib.use("TkAgg")
+        except Exception:
+            pass
+
     import matplotlib.patches as mpatches
     import matplotlib.pyplot as plt
 
