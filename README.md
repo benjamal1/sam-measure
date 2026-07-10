@@ -18,8 +18,9 @@ uv pip install -e vendor/sam2
 curl -L -o vendor/sam2/checkpoints/sam2.1_hiera_small.pt \
   https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_small.pt
 ```
+- Further guidance for use found in RUNBOOK.md
 
-## Running tests
+## Running tests (For dev/troubleshooting)
 
 ```bash
 pytest              # fast suite — pure logic only, no torch/SAM2/real images
