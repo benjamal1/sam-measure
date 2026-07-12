@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-current_phase: 1
-current_phase_name: Walking Skeleton — Single-Thread Click-to-CSV
+current_phase: 2
+current_phase_name: Batch Hardening & Validation
 status: in_progress
-stopped_at: Phase 2 context gathered [auto]
-last_updated: "2026-07-09T04:41:04.246Z"
-last_activity: 2026-07-08
-last_activity_desc: Phase 1 fully implemented, reviewed, and verified in an overnight autonomous session
+stopped_at: Reconciled docs with actual Mac-side progress; MEAS-03 confirmed as the one real gap
+last_updated: "2026-07-11T00:00:00.000Z"
+last_activity: 2026-07-11
+last_activity_desc: User has been running the pipeline live on the Mac since 07-09 (RUNBOOK.md, checkpoint/resume, redo workflow, calibration traceability, outlier flagging) — far beyond the original Phase 2 plan scope. Reconciled REQUIREMENTS.md/STATE.md to match reality.
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 9
-  completed_plans: 7
-  percent: 33
+  completed_plans: 8
+  percent: 44
 ---
 
 # Project State
@@ -28,12 +28,12 @@ See: .planning/PROJECT.md (updated 2026-07-07)
 
 ## Current Position
 
-Phase: 1 of 3 (Walking Skeleton — Single-Thread Click-to-CSV) — COMPLETE, VERIFIED PASSED
-Plan: 5 of 5 in current phase
-Status: Ready for Phase 2 (batch hardening) — pending user's Mac validation pass (MORNING-TEST.md) first
-Last activity: 2026-07-08 — Phase 1 fully implemented, reviewed, and verified in an overnight autonomous session
+Phase: 2 of 3 (Batch Hardening & Validation) — Phase 1 COMPLETE/VERIFIED, Mac-validated live
+Plan: 8 of 9 total plans complete (Phase 2: EXPT-04/CAL-03/CSV-04/CSV-05/QOL-02 done; MEAS-03 not built)
+Status: Real usage in progress on the Mac since 2026-07-09 (RUNBOOK.md workflow) — one real gap remains: MEAS-03 (formal ImageJ ground-truth validation script)
+Last activity: 2026-07-11 — reconciled planning docs with actual repo state after heavy Mac-side iteration
 
-Progress: [███░░░░░░░] 33%
+Progress: [████░░░░░░] 44%
 
 ## Performance Metrics
 

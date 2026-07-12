@@ -78,24 +78,24 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| SEG-01 | Phase 1 | Complete (CPU path; MPS pending Mac validation) |
+| SEG-01 | Phase 1 | Complete (validated live on the Mac — real click-to-segment runs, per RUNBOOK.md) |
 | SEG-02 | Phase 1 | Complete |
-| SEG-03 | Phase 1 | Complete (CPU fallback proven; MPS pending Mac validation) |
+| SEG-03 | Phase 1 | Complete (CPU + MPS both validated) |
 | EXPT-01 | Phase 1 | Complete |
 | EXPT-02 | Phase 1 | Complete |
 | EXPT-03 | Phase 1 | Complete |
 | MEAS-01 | Phase 1 | Complete |
 | MEAS-02 | Phase 1 | Complete |
-| CAL-01 | Phase 1 | In Progress (math complete; interactive click pending Mac validation) |
+| CAL-01 | Phase 1 | Complete (validated live on the Mac) |
 | CAL-02 | Phase 1 | Complete |
 | CSV-01 | Phase 1 | Complete |
 | CSV-02 | Phase 1 | Complete |
 | CSV-03 | Phase 1 | Complete |
-| EXPT-04 | Phase 2 | Pending |
-| MEAS-03 | Phase 2 | Pending |
+| EXPT-04 | Phase 2 | Complete (implemented as processed_photos.json checkpoint, superseding the original manifest-only skip-if-exists plan — see src/segment/segment_export.py) |
+| MEAS-03 | Phase 2 | **Pending — real gap.** `src/validate/imagej_validation.py` is referenced (outliers.py docstring) but was never built. No formal ImageJ ground-truth comparison exists. |
 | CAL-03 | Phase 2 | Complete |
 | CSV-04 | Phase 2 | Complete |
-| CSV-05 | Phase 2 | Pending |
+| CSV-05 | Phase 2 | Complete (src/pipeline/manifest.py, wired into segment_export.py) |
 | QOL-02 | Phase 2 (plan 02-04) | Complete (pulled forward from v2) |
 | CLN-01 | Phase 3 | Pending |
 | CLN-02 | Phase 3 | Pending |
