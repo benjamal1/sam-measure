@@ -43,25 +43,25 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 ### Phase 2: Batch Hardening & Validation
 
-**Goal**: The pipeline built in Phase 1 can be trusted to run across the full multi-session historical dataset — measurement accuracy is validated against ImageJ ground truth, re-runs are safe, missing calibration hard-fails loudly, and every run leaves an audit trail.
+**Goal**: The pipeline built in Phase 1 can be trusted to run across the full multi-session historical dataset — re-runs are safe, missing calibration hard-fails loudly, and every run leaves an audit trail.
 **Mode:** mvp
+**Status:** COMPLETE (2026-07-11)
 **Depends on**: Phase 1
-**Requirements**: EXPT-04, MEAS-03, CAL-03, CSV-04, CSV-05
+**Requirements**: EXPT-04, CAL-03, CSV-04, CSV-05 (MEAS-03 descoped — see REQUIREMENTS.md Out of Scope)
 **Success Criteria** (what must be TRUE):
 
-  1. Re-running mask export on already-processed photos does not duplicate or clobber existing masks (idempotent/skippable)
-  2. Measurement output (average diameter, stdev) has been validated against existing ImageJ output on a shared sample set before being trusted on new data
-  3. Processing a thread whose session has no matching ruler calibration hard-fails with a clear error instead of silently defaulting or skipping
-  4. A thread row that can't be matched to a calibration factor during CSV assembly hard-fails the run instead of being silently skipped or nulled out
-  5. Each pipeline run produces a manifest/log recording every input processed, every output written, and which conversion factor was applied to which thread
+  1. Re-running mask export on already-processed photos does not duplicate or clobber existing masks (idempotent/skippable) — ✅ done via `processed_photos.json` checkpoint (segment_export.py)
+  2. ~~Measurement output validated against ImageJ ground truth~~ — descoped 2026-07-11; process (pixel measurement + calibrated conversion) judged correct by construction
+  3. Processing a thread whose session has no matching ruler calibration hard-fails with a clear error instead of silently defaulting or skipping — ✅ done
+  4. A thread row that can't be matched to a calibration factor during CSV assembly hard-fails the run instead of being silently skipped or nulled out — ✅ done
+  5. Each pipeline run produces a manifest/log recording every input processed, every output written, and which conversion factor was applied to which thread — ✅ done via `src/pipeline/manifest.py`
 
-**Plans**: 2/4 plans executed
+**Plans**: 4/4 (02-03's original ImageJ-validation scope descoped, not executed)
 
-- [x] 02-04-PLAN.md
-
-- [ ] 02-01-PLAN.md — Idempotent batch export + run manifest (EXPT-04, CSV-05) [wave 1]
+- [x] 02-01-PLAN.md — Idempotent batch export + run manifest (EXPT-04, CSV-05) [wave 1] — evolved into processed_photos.json + manifest.py
 - [x] 02-02-PLAN.md — Hard-fail calibration contracts, no partial/stale CSV (CAL-03, CSV-04) [wave 1]
-- [ ] 02-03-PLAN.md — ImageJ ground-truth validation across all 4 threads → VALIDATION.md (MEAS-03) [wave 1]
+- [x] 02-03-PLAN.md — ~~ImageJ ground-truth validation~~ [wave 1] — descoped by user 2026-07-11
+- [x] 02-04-PLAN.md — Real-world Mac hardening (redo workflow, calibration traceability, outlier flagging, cleanup_masks) [wave 1]
 
 ### Phase 3: Historical Folder Cleanup
 
@@ -85,6 +85,6 @@ Phases execute in numeric order: 1 → 2 → 3
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Walking Skeleton — Single-Thread Click-to-CSV | 5/5 | Complete (verified passed) | 2026-07-08 |
-| 2. Batch Hardening & Validation | 2/4 | In Progress|  |
+| 2. Batch Hardening & Validation | 4/4 | Complete (MEAS-03 descoped) | 2026-07-11 |
 | 3. Historical Folder Cleanup | 0/TBD | Not started | - |
 </content>

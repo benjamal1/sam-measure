@@ -24,7 +24,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **MEAS-01**: A batch script computes pixel area for every exported mask
 - [x] **MEAS-02**: A batch script computes average diameter and standard deviation (px) per thread from its mask, using a method comparable to the existing ImageJ perpendicular edge-tracing output (not simple bounding-box width)
-- [ ] **MEAS-03**: Measurement logic is validated against existing ImageJ output on a shared sample set before being trusted on new data
+- [~] **MEAS-03**: ~~Measurement logic is validated against existing ImageJ output on a shared sample set before being trusted on new data~~ — descoped, see Out of Scope
 
 ### Calibration
 
@@ -70,6 +70,7 @@ Explicitly excluded. Documented to prevent scope creep.
 | Single global script to rename all historical images at once | Folder/naming conventions vary by batch and day; cleanup is inspected and run per-batch instead |
 | Rewriting the existing R compaction-analysis script | Pipeline conforms its CSV output to the R script's existing format instead |
 | Cloud-hosted SAM2 / cloud GPU dependency | Must run locally on the user's M2 Mac |
+| Formal ImageJ ground-truth validation script (MEAS-03) | User decision 2026-07-11: the measurement is pixel-counting + a known conversion factor — if the process (segmentation → pixel measurement → calibrated conversion) is correct, the output is correct by construction. No separate ground-truth comparison script needed; user will sanity-check by eye once the full dataset is analyzed. |
 | Multi-user support, web app, or hosted service | Single-user local research tool |
 
 ## Traceability
@@ -92,7 +93,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CSV-02 | Phase 1 | Complete |
 | CSV-03 | Phase 1 | Complete |
 | EXPT-04 | Phase 2 | Complete (implemented as processed_photos.json checkpoint, superseding the original manifest-only skip-if-exists plan — see src/segment/segment_export.py) |
-| MEAS-03 | Phase 2 | **Pending — real gap.** `src/validate/imagej_validation.py` is referenced (outliers.py docstring) but was never built. No formal ImageJ ground-truth comparison exists. |
+| MEAS-03 | Phase 2 | Descoped 2026-07-11 — see Out of Scope. Not a gap; user judged the pixel-measurement + calibration process correct by construction. |
 | CAL-03 | Phase 2 | Complete |
 | CSV-04 | Phase 2 | Complete |
 | CSV-05 | Phase 2 | Complete (src/pipeline/manifest.py, wired into segment_export.py) |
