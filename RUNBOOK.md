@@ -48,7 +48,7 @@ PYTHONPATH=src .venv/bin/python -m segment.segment_export \
 | Action | Key/click |
 |---|---|
 | Positive point (mark thread) | Left click |
-| Negative point (mark "not thread") | Right click |
+| Negative point (mark "not thread") | Right click (have to fix) |
 | Zoom in/out | Scroll wheel, centered on cursor |
 | Accept + label current mask | `a` — a text box appears on the photo, type and press Enter |
 | Erase mode (fix a bad region, e.g. a needle) | `e` to toggle, then **click-drag a box** over the region to remove, release to erase |
@@ -195,15 +195,8 @@ ruler photo used, for full traceability.
 
 ## Speed
 
-The first click on each photo pays a one-time SAM2 encoder cost (photo → embedding); every
-click after that on the same photo is cheap. In practice, the old terminal round-trip for
-condition/thread entry (now removed — see step 1's in-canvas label box) was very likely the
-actual dominant slowdown, not model size or compute — don't assume you need a bigger/smaller
-checkpoint or beefier hardware before trying the current flow first.
-
-If it's still too slow, try the smaller `tiny`
-checkpoint (faster, small accuracy tradeoff — hasn't been re-validated against ImageJ
-ground truth the way `small` has):
+If SAM2 small is too slow, try the smaller `tiny`
+checkpoint (faster, small accuracy tradeoff:
 
 ```bash
 curl -L -o vendor/sam2/checkpoints/sam2.1_hiera_tiny.pt \
@@ -214,46 +207,6 @@ PYTHONPATH=src .venv/bin/python -m segment.segment_export \
   --checkpoint vendor/sam2/checkpoints/sam2.1_hiera_tiny.pt \
   --model-cfg configs/sam2.1/sam2.1_hiera_t.yaml
 ```
-
-Have real GPU compute available (e.g. a lab machine)? Go the other way — use the largest,
-most accurate checkpoint instead, since the speed/accuracy tradeoff only mattered when
-compute was the bottleneck:
-
-```bash
-curl -L -o vendor/sam2/checkpoints/sam2.1_hiera_large.pt \
-  https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
-
-CUDA_VISIBLE_DEVICES=0 PYTHONPATH=src .venv/bin/python -m segment.segment_export \
-  --input-dir "/path/to/your/photos" \
-  --checkpoint vendor/sam2/checkpoints/sam2.1_hiera_large.pt \
-  --model-cfg configs/sam2.1/sam2.1_hiera_l.yaml
-```
-
-## Running over SSH on a remote GPU machine — seeing the click window
-
-Plain `ssh` never forwards a display — the click window would fail to open, or (if the
-remote machine has its own monitor) open there instead of on your laptop.
-
-**Best option: matplotlib's WebAgg backend** — serves the plot over HTTP instead of a
-native window, viewable in an ordinary browser tab. No XQuartz, and it's built for network
-latency (websocket updates) rather than X11's per-pixel round-trips. Needs `tornado`
-(already in `requirements.txt`, but if you set up your venv before it was added, or bare
-`pip install tornado` landed in the wrong environment — check with
-`.venv/bin/python -m pip show tornado`, and if missing, `.venv/bin/python -m pip install
-tornado` explicitly rather than bare `pip install`, which can silently install into a
-different Python than your venv):
-
-```bash
-MPLBACKEND=WebAgg PYTHONPATH=src .venv/bin/python -m segment.segment_export --input-dir ...
-```
-
-It'll print a `http://127.0.0.1:8988/` URL — forward that port (`ssh -L 8988:localhost:8988
-user@host`, or let VS Code Remote-SSH auto-forward it) and open it in a browser on your
-laptop. Clicks, keys, and scroll all work through the browser.
-
-Alternative: X11 forwarding (`ssh -X`/`-Y` + XQuartz on macOS) also works, but tends to be
-laggier for image-heavy redraws (erase-box drag, zoom) since every pixel round-trips instead
-of just the websocket deltas WebAgg sends.
 
 ## Tests
 
