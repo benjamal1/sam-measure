@@ -71,7 +71,7 @@ def run(
         export_mask(mask, image_rgb, stem, masks_dir=masks_dir, qc_dir=qc_dir)
         manifest = add_output(manifest, stem=stem, action="written", mask_path=mask_path, qc_path=qc_path)
 
-    measure_folder(masks_dir, csv_dir / "measurements.csv")
+    measure_folder(masks_dir, csv_dir / "measurements.csv", qc_dir=qc_dir)
 
     factor = px_per_cm(ruler_points[0], ruler_points[1], known_cm_span)
     write_calibration_csv(
