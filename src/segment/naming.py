@@ -19,13 +19,36 @@ from pathlib import Path
 
 _BATCH_RE = re.compile(r"^Batch\s+(?P<batch>\d+)\s+(?P<mm>\d{2})-(?P<dd>\d{2})-(?P<yy>\d{2})$", re.IGNORECASE)
 _BATCH_NO_DATE_RE = re.compile(r"^Batch\s+(?P<batch>\d+)$", re.IGNORECASE)
-_CONDITION_RE = re.compile(r"^(Pre|Post)[Ss]tretch$")
+_CONDITION_RE = re.compile(r"^(?P<phase>Pre|Post)[Ss]tretch$")
 _DAY_RE = re.compile(r"^D(?P<day>\d+)\s+(?P<mm>\d{2})-(?P<dd>\d{2})-(?P<yy>\d{2})$", re.IGNORECASE)
 _FLAT_DATE_RE = re.compile(r"^(?P<mm>\d{2})-(?P<dd>\d{2})-(?P<yy>\d{2})$")
+_CONDITION_THREAD_LABEL_RE = re.compile(r"^(?P<letters>[A-Za-z]+)(?P<digits>\d*)$")
 
 
 def _to_date(mm: str, dd: str, yy: str) -> date:
     return date(2000 + int(yy), int(mm), int(dd))
+
+
+def _normalize_condition_word(part: str) -> str:
+    """Real folders exist as both 'PostStretch' and 'Poststretch' — normalize to one
+    consistent capitalization so the same phase doesn't produce two different stems/CSV
+    values depending on which casing a given batch's folder happened to use."""
+    m = _CONDITION_RE.match(part)
+    return f"{m.group('phase').capitalize()}stretch"
+
+
+def split_condition_thread_label(label: str) -> tuple[str | None, str]:
+    """Split a human-typed thread label like 'HL1' into (condition, thread_number).
+
+    Letters prefix = condition code, trailing digits = thread number (defaults to '1' when
+    no digits are present, e.g. 'MM' -> ('MM', '1')). Returns (None, label) UNCHANGED when
+    the label doesn't match this letters(+digits) shape — e.g. the legacy flat-convention
+    thread '5.11' — signaling "no override" to the caller rather than corrupting it.
+    """
+    m = _CONDITION_THREAD_LABEL_RE.match(label)
+    if not m:
+        return None, label
+    return m.group("letters"), (m.group("digits") or "1")
 
 
 @dataclass(frozen=True)
@@ -63,7 +86,7 @@ def parse_photo_path(photo_path: Path, nextcloud_root: Path) -> PhotoMetadata:
             batch_start_date = _to_date(m.group("mm"), m.group("dd"), m.group("yy"))
             continue
         if _CONDITION_RE.match(part):
-            condition = part
+            condition = _normalize_condition_word(part)
             continue
         m = _DAY_RE.match(part)
         if m:
@@ -135,7 +158,7 @@ def parse_lenient_path(photo_path: Path) -> PhotoMetadata:
             batch = m.group("batch")
             continue
         if _CONDITION_RE.match(part):
-            condition = part
+            condition = _normalize_condition_word(part)
             continue
         m = _DAY_RE.match(part)
         if m:
@@ -185,7 +208,7 @@ def canonical_stem(meta: PhotoMetadata, thread: str) -> str:
     if meta.batch:
         parts.append(f"batch{meta.batch}")
     if meta.condition:
-        parts.append(meta.condition.lower())
+        parts.append(meta.condition)
     parts.append(f"thread{thread}")
     return "_".join(parts)
 

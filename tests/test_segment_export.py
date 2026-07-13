@@ -78,8 +78,8 @@ def test_export_folder_recursively_discovers_nested_tree_and_skips_ruler(data_ro
     assert len(outputs) == 2
     assert all(o["action"] == "written" for o in outputs)
     assert {o["stem"] for o in outputs} == {
-        "2026-04-25_batch8_prestretch_thread01",
-        "2026-04-25_batch8_prestretch_thread02",
+        "2026-04-25_batch8_PreStretch_thread01",
+        "2026-04-25_batch8_PreStretch_thread02",
     }
 
 
@@ -125,9 +125,9 @@ def test_manual_condition_and_thread_override_wins_over_path_guess(data_root):
     )
 
     stem = manifest["outputs"][0]["stem"]
-    assert "poststretch" in stem
+    assert "Poststretch" in stem
     assert "thread99" in stem
-    assert "prestretch" not in stem
+    assert "Prestretch" not in stem
 
 
 def test_export_folder_flat_legacy_thread_guess_used_without_prompting_when_no_override(data_root):

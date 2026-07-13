@@ -27,7 +27,14 @@ from pathlib import Path
 from pipeline.manifest import add_output, new_manifest, write_manifest
 from segment.click_loop import run_click_loop
 from segment.export import export_mask
-from segment.naming import PhotoMetadata, canonical_stem, parse_flat_path, parse_lenient_path, parse_photo_path
+from segment.naming import (
+    PhotoMetadata,
+    canonical_stem,
+    parse_flat_path,
+    parse_lenient_path,
+    parse_photo_path,
+    split_condition_thread_label,
+)
 from segment.sam2_session import load_predictor
 
 _EXPLICIT_DATE_RE = re.compile(r"^(?P<mm>\d{2})-(?P<dd>\d{2})-(?P<yy>\d{2})$")
@@ -212,6 +219,14 @@ def export_folder(
         def on_label_submit(mask, condition_value, thread_value, guess=guess, image_rgb=image_rgb):
             nonlocal manifest
             had_any_accept["v"] = True
+            # A typed label like "HL1" is condition+thread combined (letters=condition,
+            # trailing digits=thread number, default "1") — it overrides whatever condition
+            # was otherwise known (folder-derived or prior prompt). Legacy decimal threads
+            # like "5.11" don't match this shape and pass through unchanged (see
+            # split_condition_thread_label's docstring).
+            label_condition, label_thread = split_condition_thread_label(thread_value)
+            if label_condition is not None:
+                condition_value, thread_value = label_condition, label_thread
             meta = guess if condition_value == guess.condition else replace(guess, condition=condition_value)
             mask_stem = canonical_stem(meta, thread_value)
             mask_out = masks_dir / f"{mask_stem}.png"

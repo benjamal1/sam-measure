@@ -31,11 +31,14 @@ def test_parse_nested_path_would_fail_if_batch_date_used_as_date():
 
 
 def test_parse_nested_path_prestretch_condition():
+    """Real folder is 'PreStretch' (mixed case) — normalized to 'Prestretch' (see
+    test_parse_nested_path_normalizes_condition_casing_variants for the full normalization
+    rationale)."""
     photo = NEXTCLOUD_ROOT / "Batch 7 04-15-26" / "PreStretch" / "D1 04-23-26" / "IMG_1234.JPG"
 
     meta = parse_photo_path(photo, NEXTCLOUD_ROOT)
 
-    assert meta.condition == "PreStretch"
+    assert meta.condition == "Prestretch"
     assert meta.day == "1"
     assert meta.date == date(2026, 4, 23)
 
@@ -78,7 +81,7 @@ def test_canonical_stem_nested_omits_no_segments():
 
     stem = canonical_stem(meta, thread="05")
 
-    assert stem == "2026-05-11_batch8_poststretch_thread05"
+    assert stem == "2026-05-11_batch8_Poststretch_thread05"
     assert "/" not in stem
     assert " " not in stem
 
@@ -173,7 +176,7 @@ def test_canonical_stem_raises_on_unsafe_batch():
 
 def test_canonical_stem_still_accepts_safe_condition_and_batch():
     stem = canonical_stem(_meta(condition="PostStretch", batch="8"), "A1")
-    assert stem == "2026-05-11_batch8_poststretch_threadA1"
+    assert stem == "2026-05-11_batch8_PostStretch_threadA1"
 
 
 def test_naming_module_does_not_import_torch_or_cv2():
@@ -185,3 +188,54 @@ def test_naming_module_does_not_import_torch_or_cv2():
     source = Path(naming_mod.__file__).read_text()
     assert "import torch" not in source
     assert "import cv2" not in source
+
+
+# --- split_condition_thread_label: typed thread label -> (condition, thread) ----------------
+
+
+def test_split_condition_thread_label_letters_and_digits():
+    from segment.naming import split_condition_thread_label
+
+    assert split_condition_thread_label("HL1") == ("HL", "1")
+    assert split_condition_thread_label("HM2") == ("HM", "2")
+
+
+def test_split_condition_thread_label_letters_only_defaults_thread_to_1():
+    from segment.naming import split_condition_thread_label
+
+    assert split_condition_thread_label("MM") == ("MM", "1")
+
+
+def test_split_condition_thread_label_preserves_multidigit_thread():
+    from segment.naming import split_condition_thread_label
+
+    assert split_condition_thread_label("HL23") == ("HL", "23")
+
+
+def test_split_condition_thread_label_no_override_for_legacy_decimal_thread():
+    """A legacy flat-convention thread like '5.11' must not be treated as a condition+thread
+    label — returns (None, label) unchanged, signaling 'no override' to the caller."""
+    from segment.naming import split_condition_thread_label
+
+    assert split_condition_thread_label("5.11") == (None, "5.11")
+
+
+def test_split_condition_thread_label_no_override_for_pure_digits():
+    from segment.naming import split_condition_thread_label
+
+    assert split_condition_thread_label("12") == (None, "12")
+
+
+# --- nested-path condition capture is normalized across real casing variants ----------------
+
+
+def test_parse_nested_path_normalizes_condition_casing_variants():
+    """Real folders exist as both 'PostStretch' and 'Poststretch' — must normalize to one
+    consistent form so the same condition doesn't produce two different CSV values."""
+    photo_a = NEXTCLOUD_ROOT / "Batch 8 04-24-26" / "PostStretch" / "D12 05-11-26" / "IMG_1.JPG"
+    photo_b = NEXTCLOUD_ROOT / "Batch 8 04-24-26" / "Poststretch" / "D12 05-11-26" / "IMG_2.JPG"
+
+    meta_a = parse_photo_path(photo_a, NEXTCLOUD_ROOT)
+    meta_b = parse_photo_path(photo_b, NEXTCLOUD_ROOT)
+
+    assert meta_a.condition == meta_b.condition == "Poststretch"
