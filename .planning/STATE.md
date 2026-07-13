@@ -5,16 +5,16 @@ milestone_name: milestone
 current_phase: 2
 current_phase_name: Batch Hardening & Validation
 status: complete
-stopped_at: Phase 2 complete — MEAS-03 descoped by user decision, not a gap
-last_updated: "2026-07-11T00:05:00.000Z"
+stopped_at: "Rebuilt skeleton measurement (graph backbone path, curve/orientation-robust) + added condition/thread label splitting (HL1 -> condition=HL, thread=1) + migration script for existing masks. Fixed live data on Mac: renamed 350 masks, patched measurements.csv columns in place. Phase 2 (batch-hardening) still in_progress — 2/4 plans have summaries (02-02, 02-04); 02-01/02-03 done on Mac but summaries never written."
+last_updated: "2026-07-13T04:07:51.361Z"
 last_activity: 2026-07-11
-last_activity_desc: User decided MEAS-03 (ImageJ ground-truth validation script) is unnecessary — pixel measurement + calibrated conversion is correct by construction if the process is right; user will sanity-check visually once full dataset is analyzed. Phase 2 requirements now all Complete or descoped.
+last_activity_desc: MEAS-03 descoped, Phase 2 closed out
 progress:
   total_phases: 3
-  completed_phases: 2
+  completed_phases: 1
   total_plans: 9
-  completed_plans: 9
-  percent: 67
+  completed_plans: 7
+  percent: 33
 ---
 
 # Project State
@@ -97,8 +97,8 @@ Items acknowledged and carried forward from previous milestone close:
 
 ## Session Continuity
 
-Last session: 2026-07-09T04:40:12.125Z
-Stopped at: Phase 2 context gathered [auto]
+Last session: 2026-07-13T04:07:51.352Z
+Stopped at: Rebuilt skeleton measurement (graph backbone path, curve/orientation-robust) + added condition/thread label splitting (HL1 -> condition=HL, thread=1) + migration script for existing masks. Fixed live data on Mac: renamed 350 masks, patched measurements.csv columns in place. Phase 2 (batch-hardening) still in_progress — 2/4 plans have summaries (02-02, 02-04); 02-01/02-03 done on Mac but summaries never written.
 Resume file: .planning/phases/02-batch-hardening-validation/02-CONTEXT.md
 
 ## Pipeline Progress
