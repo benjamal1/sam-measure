@@ -148,3 +148,113 @@ def test_measure_mask_single_component_unaffected_by_stray_blob_guard():
     result = measure_mask(mask)
 
     assert result["area_px"] == 2000
+
+
+# --- skeleton path ordering: orientation- and curvature-robust, real arc length ------------
+
+
+def test_measure_mask_diagonal_straight_strip_same_as_horizontal():
+    """A straight strip at 45 degrees must measure the same width as an equivalent horizontal
+    strip — orientation must not matter now that ordering walks skeleton connectivity."""
+    from scipy.ndimage import rotate
+
+    horiz = np.zeros((120, 140), dtype=bool)
+    horiz[50:70, 20:120] = True  # 20px wide, 100px long
+
+    diag = rotate(horiz.astype(float), 45, reshape=True, order=1) > 0.5
+
+    horiz_result = measure_mask(horiz)
+    diag_result = measure_mask(diag)
+
+    assert diag_result["avg_diameter_px"] == pytest.approx(horiz_result["avg_diameter_px"], rel=0.25)
+
+
+def test_measure_mask_l_shaped_curve_does_not_scramble_ordering():
+    """An L-shaped (curved) thread must still measure a sane uniform width — a naive x/y
+    axis-sort would scramble ordering on the vertical leg; path-walking must not."""
+    mask = np.zeros((150, 150), dtype=bool)
+    width = 16
+    mask[20:100, 30:30 + width] = True  # vertical leg
+    mask[100 - width:100, 30:120] = True  # horizontal leg (L-shape corner)
+
+    result = measure_mask(mask)
+
+    assert 10 < result["avg_diameter_px"] < 22
+    assert result["stdev_px"] < 8  # uniform width along both legs; should not blow up from bad ordering
+
+
+def test_measure_mask_percentage_trim_removes_end_fraction_of_arc_length_not_point_count():
+    """endpoint_trim_fraction=0.5 on a strongly tapered strip should average close to the
+    TRUE middle-section width, regardless of total skeleton point count."""
+    mask = np.zeros((120, 220), dtype=bool)
+    # Narrow ends (width 4), wide middle (width 40) — extreme taper so trim fraction matters.
+    for col in range(20, 200):
+        t = (col - 20) / (200 - 20)
+        # peak in the middle, narrow at both ends
+        width = int(4 + 36 * (1 - abs(2 * t - 1)))
+        center = 60
+        mask[center - width // 2: center + width // 2, col] = True
+
+    default_result = measure_mask(mask, endpoint_trim_fraction=0.05)
+    heavy_trim_result = measure_mask(mask, endpoint_trim_fraction=0.45)
+
+    # Trimming more aggressively should pull the average UP toward the wide middle peak,
+    # away from the narrow ends included by the lighter trim.
+    assert heavy_trim_result["avg_diameter_px"] > default_result["avg_diameter_px"]
+
+
+def test_measure_mask_spur_from_boundary_noise_excluded_from_backbone():
+    """A small branch spur off the main skeleton (from jagged boundary noise) must not be
+    walked as part of the measured backbone path."""
+    mask = np.zeros((120, 140), dtype=bool)
+    mask[50:70, 20:120] = True  # main strip, 20px wide, 100px long
+    mask[45:50, 60:64] = True   # small bump on the top edge mid-strip -> skeletonize spur
+
+    result = measure_mask(mask)
+
+    # Spur should not meaningfully distort the average away from the true ~20px width.
+    assert result["avg_diameter_px"] == pytest.approx(20.0, abs=4.0)
+
+
+# --- skeleton QC rendering -------------------------------------------------------------
+
+
+def test_render_skeleton_qc_returns_rgb_image_matching_mask_shape():
+    from measure.measure_masks import render_skeleton_qc
+
+    mask = np.zeros((80, 100), dtype=bool)
+    mask[30:50, 10:90] = True
+
+    qc = render_skeleton_qc(mask, endpoint_trim_fraction=0.1)
+
+    assert qc.shape == (80, 100, 3)
+    assert qc.dtype == np.uint8
+
+
+def test_render_skeleton_qc_marks_trimmed_and_kept_regions_differently():
+    from measure.measure_masks import render_skeleton_qc
+
+    mask = np.zeros((80, 200), dtype=bool)
+    mask[30:50, 10:190] = True
+
+    qc = render_skeleton_qc(mask, endpoint_trim_fraction=0.2)
+
+    # Distinct colors must appear for kept vs trimmed skeleton pixels (not a uniform image).
+    unique_colors = {tuple(c) for c in qc.reshape(-1, 3)}
+    assert len(unique_colors) >= 3  # background + kept-skeleton color + trimmed-skeleton color
+
+
+def test_measure_folder_writes_skeleton_qc_images(tmp_path):
+    from measure.measure_masks import measure_folder
+
+    masks_dir = tmp_path / "masks"
+    masks_dir.mkdir()
+    qc_dir = tmp_path / "qc"
+    stem = "2025-08-03_thread5.11"
+    mask = np.zeros((80, 100), dtype=bool)
+    mask[30:50, 10:90] = True
+    Image.fromarray((mask * 255).astype(np.uint8)).save(masks_dir / f"{stem}.png")
+
+    measure_folder(masks_dir, tmp_path / "measurements.csv", qc_dir=qc_dir)
+
+    assert (qc_dir / f"{stem}_skeleton.png").exists()
