@@ -5,10 +5,7 @@ correct the mask if needed, and get calibrated real-world measurements (area, wi
 out the other end as a CSV.
 
 **Origin:** built for bioelectric thread compaction analysis — measuring thread diameter/area
-from microscope photos, replacing manual ImageJ edge-tracing. The pipeline generalizes to any
-task that boils down to "segment an object in a photo, then measure it in real-world units":
-other tissue types, materials, or objects — as long as each photo (or session) has a calibration
-reference in frame (a ruler, a known-scale object) to convert pixels to real units.
+from brightfield images. The pipeline generalizes to any task that boils down to "segment an object in a photo, then measure it in real-world units": other tissue types, materials, or objects — as long as each image (or session) has a calibration reference in frame (a ruler, a known-scale object) to convert pixels to real units.
 
 See `.planning/PROJECT.md` for the full project history/context and
 `.planning/phases/01-.../SKELETON.md` for the architecture.
