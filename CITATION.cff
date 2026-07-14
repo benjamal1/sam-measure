@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
-title: "Thread Compaction Analysis (Auto): SAM2-based bioelectric thread diameter measurement"
+title: "SAMeasure: SAM2-based bioelectric thread diameter measurement"
 abstract: >-
   An automated pipeline that measures bioelectric thread diameter and compaction
   from brightfield photos. Threads are segmented with a single click using SAM2,
@@ -13,7 +13,7 @@ authors:
 version: 1.0.0
 date-released: "2026-07-14"
 license: MIT
-repository-code: "https://github.com/benjamal1/thread-compaction-analysis-auto"
+repository-code: "https://github.com/benjamal1/sam-measure"
 keywords:
   - SAM2
   - image-segmentation
